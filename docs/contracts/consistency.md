@@ -1,8 +1,15 @@
 # Concorrência e recuperação
 
 Admissão, cotação, idempotência, recuperação e transições estão implementadas para
-retirada e entrega, incluindo o endereço e o despacho em Entregas. Os passos
-específicos de Mesas pertencem à etapa 6.
+retirada, entrega e mesa, incluindo o endereço e o despacho em Entregas e a validação
+da mesa em Mesas.
+
+Na mesa, a identidade do tablet é verificada em Mesas antes de registrar a operação;
+o principal `tablet:{context_id}` e a mesa entram no hash. A operação guarda só o
+ID do contexto, nunca o token, então o worker conclui mesmo depois de a credencial
+expirar. Recibos de Mesas são repetidos com o mesmo `operation_id`; depois de salvo,
+a disponibilidade não é revalidada. Rejeições definitivas de Mesas são apenas
+`table_not_found`, `table_unavailable` e conflito de idempotência.
 
 ## Ponto de admissão
 

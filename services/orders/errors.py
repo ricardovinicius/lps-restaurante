@@ -5,6 +5,8 @@ BUSINESS_REJECTIONS = {
     "price_changed": 409,
     "product_unavailable": 409,
     "idempotency_conflict": 409,
+    "table_not_found": 404,
+    "table_unavailable": 409,
 }
 
 

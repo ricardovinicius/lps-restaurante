@@ -30,9 +30,9 @@ def deployment():
 
     try:
         compose("up", "-d", "--build", "--wait", "--wait-timeout", "180", "gateway")
-        for service in ("configuration", "catalog"):
+        for service in ("configuration", "catalog", "tables"):
             compose("exec", "-T", service, "python", "-m", "mesa_platform.seed", service)
-        for service in ("configuration", "catalog", "orders"):
+        for service in ("configuration", "catalog", "orders", "tables"):
             compose("exec", "-T", service, "python", "-c", (ROOT / "tests/integration/database_checks.py").read_text())
 
         yield "http://" + compose("port", "gateway", "80"), passwords, compose

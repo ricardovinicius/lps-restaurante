@@ -11,7 +11,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from mesa_platform.http import ApiError
-from services.orders.dependencies import obtain_admission, obtain_quote, register_delivery
+from services.orders.dependencies import obtain_admission, obtain_quote, register_delivery, validate_table
 from services.orders.errors import is_business_rejection
 from services.orders.leases import acquire, leased, record_error, release
 from services.orders.models import CheckoutOperation, Order, OrderItem
@@ -31,6 +31,12 @@ class Quote(BaseModel):
     total_cents: int = Field(gt=0)
 
 
+class TableReceipt(BaseModel):
+    operation_id: UUID
+    table_id: UUID
+    table_number: int = Field(gt=0)
+
+
 class DeliveryReceipt(BaseModel):
     order_id: UUID
     operation_id: UUID
@@ -46,11 +52,13 @@ def without_address(payload):
     return {key: value for key, value in payload.items() if key != "address"}
 
 
-def register_operation(db, principal_id, customer_context_id, key, payload):
+def register_operation(db, creator, key, payload):
+    principal_id = creator.principal
     identity = payload_hash({"principal": principal_id, "payload": payload})
     db.execute(insert(CheckoutOperation).values(
         id=uuid4(), order_id=uuid4(), principal_id=principal_id,
-        customer_context_id=customer_context_id, idempotency_key=key,
+        customer_context_id=creator.customer_context_id, table_context_id=creator.table_context_id,
+        idempotency_key=key,
         payload_hash=identity, payload=payload, state="pending", attempts=0,
     ).on_conflict_do_nothing(constraint="unique_checkout_key"))
 
@@ -118,6 +126,19 @@ def validate_quote(operation, result):
         raise ApiError(503, "dependency_unavailable", "Não foi possível validar a cotação. A operação será retomada.") from None
 
 
+def validate_table_receipt(operation, result):
+    try:
+        receipt = TableReceipt.model_validate(result)
+        if receipt.operation_id != operation.id or str(receipt.table_id) != operation.payload["table_id"]:
+            raise ValueError
+
+        return {"table_number": receipt.table_number}
+    except (ValidationError, ValueError, KeyError):
+        raise ApiError(
+            503, "dependency_unavailable", "Não foi possível validar a mesa. A operação será retomada.",
+        ) from None
+
+
 def validate_delivery(operation, result):
     try:
         receipt = DeliveryReceipt.model_validate(result)
@@ -139,9 +160,12 @@ def finish_operation(engine, operation):
         quote = row.quote
         payload = row.payload
         fee_cents = row.delivery["fee_cents"] if payload["fulfillment"] == "delivery" else 0
+        at_table = payload["fulfillment"] == "table"
         db.add(Order(
             id=row.order_id, origin=payload["origin"], fulfillment=payload["fulfillment"],
-            customer_name=payload["customer_name"], customer_context_id=row.customer_context_id,
+            customer_name=payload.get("customer_name"), customer_context_id=row.customer_context_id,
+            table_id=UUID(payload["table_id"]) if at_table else None,
+            table_number=row.table["table_number"] if at_table else None,
             state="received", version=1, configuration_revision=row.admission["configuration_revision"],
             catalog_revision=quote["catalog_revision"], fee_cents=fee_cents,
             total_cents=quote["total_cents"] + fee_cents,
@@ -189,6 +213,11 @@ def process_operation(engine, operation_id=None, request_id=None):
         if operation.quote is None:
             quote = validate_quote(operation, obtain_quote(operation, request_id))
             if not save_progress(engine, operation, "quote", quote):
+                return True
+
+        if operation.payload["fulfillment"] == "table" and operation.table is None:
+            receipt = validate_table_receipt(operation, validate_table(operation, request_id))
+            if not save_progress(engine, operation, "table", receipt):
                 return True
 
         if operation.payload["fulfillment"] == "delivery" and operation.delivery is None:

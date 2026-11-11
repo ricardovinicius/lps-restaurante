@@ -1,5 +1,7 @@
 import type { Order } from "../../api";
-import { currency, fulfillmentNames, nextAction, stateNames, stepsFor } from "../../ordering/format";
+import {
+  currency, fulfillmentNames, identification, nextAction, originNames, stateNames, stepsFor, tableLabel,
+} from "../../ordering/format";
 
 type OrderCardProps = {
   order: Order;
@@ -20,6 +22,12 @@ const dispatchMessages = {
     needs_attention: "Saída para entrega em verificação pelo atendimento.",
   },
 };
+
+function TableLine({ order }: { order: Order }) {
+  if (order.fulfillment !== "table" || !order.customer_name || !order.table_number) return null;
+
+  return <p>{tableLabel(order.table_number)}</p>;
+}
 
 function DeliveryLine({ order }: { order: Order }) {
   if (order.fulfillment !== "delivery") return null;
@@ -53,9 +61,8 @@ export function OrderCard({ order, staff, highlightCompleted, busy, actionsDisab
   return <article className="info-card">
     {highlightCompleted && <small>Último pedido concluído</small>}
     <div className="section-heading"><h3>Pedido #{order.number}</h3><strong>{stateNames[order.state]}</strong></div>
-    <p>
-      {order.customer_name} · {fulfillmentNames[order.fulfillment]} · {order.origin === "counter" ? "Balcão" : "Cliente"}
-    </p>
+    <p>{identification(order)} · {fulfillmentNames[order.fulfillment]} · {originNames[order.origin]}</p>
+    <TableLine order={order} />
     <DeliveryLine order={order} />
     <p><time dateTime={order.created_at}>{new Date(order.created_at).toLocaleString("pt-BR")}</time></p>
     <ol className="order-items">{order.items.map((item) => <li key={item.product_id}>

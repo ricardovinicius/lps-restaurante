@@ -43,3 +43,15 @@ def send_json(method, url, payload, *, service_key, request_id):
 
 def post_json(url, payload, *, service_key, request_id):
     return send_json("POST", url, payload, service_key=service_key, request_id=request_id)
+
+
+def get_json(url, *, request_id):
+    """Read a public JSON resource from another service, without credentials."""
+    request = Request(url, headers={"X-Request-ID": request_id})
+
+    try:
+        with build_opener(NoRedirect).open(request, timeout=2) as response:
+            return JsonResponse(response.status, json.load(response))
+    except HTTPError as error:
+        with error:
+            return JsonResponse(error.code, None)

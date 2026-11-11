@@ -1,7 +1,8 @@
 import hashlib
 import os
 import secrets
-from uuid import uuid4
+from dataclasses import dataclass
+from uuid import UUID, uuid4
 
 from fastapi import Request, Response
 from sqlalchemy import select
@@ -9,6 +10,7 @@ from sqlalchemy import select
 from mesa_platform.access import STAFF_COOKIE, authorize_staff
 from mesa_platform.http import ApiError
 from services.orders.models import CustomerContext
+from services.orders.table_access import optional_table_context, tablet_creator
 
 CUSTOMER_COOKIE = "mesa_customer"
 
@@ -67,23 +69,54 @@ def recover_context(payload, request, response, db):
     return {"context_id": context.id}
 
 
+@dataclass
+class Creator:
+    principal: str
+    customer_context_id: UUID | None = None
+    table_context_id: UUID | None = None
+    table_id: UUID | None = None
+
+
 def creation_principal(request: Request, db, origin):
+    """The requested origin chooses the identity; other cookies never take over."""
     if origin == "counter":
         principal = authorize_staff(request, "operator", require_csrf=True)
-        return f"operator:{principal['username']}", None
+        return Creator(principal=f"operator:{principal['username']}")
+
+    if origin == "tablet":
+        table = tablet_creator(request)
+        return Creator(
+            principal=f"tablet:{table.context_id}", table_context_id=table.context_id, table_id=table.table_id,
+        )
 
     context = require_context(request, db)
     expected = request.headers.get("X-Customer-Context")
     if expected and expected != str(context.id):
         raise ApiError(401, "invalid_customer_context", "Recupere a identificação original antes de repetir o envio.")
-    return f"customer:{context.id}", context.id
+    return Creator(principal=f"customer:{context.id}", customer_context_id=context.id)
 
 
-def allow_read(request: Request, db, customer_context_id, staff_scope="operator"):
+def allow_read(request: Request, db, customer_context_id, *, table_context_id=None, table_id=None,
+    staff_scope="operator"):
+    """Return who may read: "customer", "table" or "staff". Tablets get a projection without names."""
     context = find_context(request, db)
     if context is not None and context.id == customer_context_id:
-        return
+        return "customer"
+
+    table_failure = None
+    if table_context_id is not None or table_id is not None:
+        try:
+            table = optional_table_context(request)
+        except ApiError as error:
+            # Mesas being down must not block a valid operator session in the same browser.
+            table, table_failure = None, error
+        if table is not None and (table.context_id == table_context_id or table.table_id == table_id):
+            return "table"
+
     if request.cookies.get(STAFF_COOKIE):
         authorize_staff(request, staff_scope)
-        return
+        return "staff"
+
+    if table_failure is not None:
+        raise table_failure
     raise ApiError(404, "not_found", "Pedido ou operação não encontrado.")

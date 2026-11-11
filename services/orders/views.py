@@ -15,11 +15,18 @@ def order_view(db, row, items=None):
         items = db.scalars(select(OrderItem).where(OrderItem.order_id == row.id).order_by(OrderItem.product_id))
     return OrderView(
         id=row.id, number=row.number, origin=row.origin, fulfillment=row.fulfillment,
-        customer_name=row.customer_name, state=row.state, version=row.version,
+        customer_name=row.customer_name, table_id=row.table_id, table_number=row.table_number,
+        state=row.state, version=row.version,
         configuration_revision=row.configuration_revision, catalog_revision=row.catalog_revision,
         items=[ItemView.model_validate(item) for item in items], fee_cents=row.fee_cents,
         total_cents=row.total_cents, created_at=row.created_at, updated_at=row.updated_at,
     )
+
+
+def for_tablet(view):
+    """The Comanda never sees who else ordered for its table."""
+    view.customer_name = None
+    return view
 
 
 def decode_cursor(cursor):
@@ -34,12 +41,15 @@ def decode_cursor(cursor):
         raise ApiError(422, "invalid_cursor", "Cursor de paginação inválido.") from None
 
 
-def page_rows(db, query, model, cursor, limit):
+def page_rows(db, query, model, cursor, limit, *, newest_first=False):
+    position = tuple_(model.created_at, model.id)
     if cursor:
         timestamp, identifier = decode_cursor(cursor)
-        query = query.where(tuple_(model.created_at, model.id) > tuple_(timestamp, identifier))
+        after = tuple_(timestamp, identifier)
+        query = query.where(position < after if newest_first else position > after)
 
-    rows = db.scalars(query.order_by(model.created_at, model.id).limit(limit + 1)).all()
+    ordering = (model.created_at.desc(), model.id.desc()) if newest_first else (model.created_at, model.id)
+    rows = db.scalars(query.order_by(*ordering).limit(limit + 1)).all()
     next_cursor = None
     if len(rows) > limit:
         last = rows[limit - 1]
@@ -48,8 +58,8 @@ def page_rows(db, query, model, cursor, limit):
     return rows[:limit], next_cursor
 
 
-def order_page(db, query, cursor, limit):
-    rows, next_cursor = page_rows(db, query, Order, cursor, limit)
+def order_page(db, query, cursor, limit, *, newest_first=False):
+    rows, next_cursor = page_rows(db, query, Order, cursor, limit, newest_first=newest_first)
     grouped = {row.id: [] for row in rows}
     if rows:
         items = db.scalars(select(OrderItem).where(OrderItem.order_id.in_(grouped)).order_by(OrderItem.product_id))

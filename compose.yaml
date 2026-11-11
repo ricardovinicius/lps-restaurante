@@ -26,6 +26,7 @@ services:
     environment:
       MESA_CATALOG_ACCESS_KEY: ${MESA_CATALOG_ACCESS_KEY:?Set MESA_CATALOG_ACCESS_KEY}
       MESA_ORDERS_ACCESS_KEY: ${MESA_ORDERS_ACCESS_KEY:?Set MESA_ORDERS_ACCESS_KEY}
+      MESA_TABLES_ACCESS_KEY: ${MESA_TABLES_ACCESS_KEY:?Set MESA_TABLES_ACCESS_KEY}
       MESA_DEMO_ADMIN_PASSWORD: ${MESA_DEMO_ADMIN_PASSWORD:-}
       MESA_DEMO_OPERATOR_PASSWORD: ${MESA_DEMO_OPERATOR_PASSWORD:-}
       MESA_SECURE_COOKIES: ${MESA_SECURE_COOKIES:-0}
@@ -68,6 +69,7 @@ services:
       MESA_CONFIGURATION_URL: http://configuration:8000
       MESA_CATALOG_URL: http://catalog:8000
       MESA_DELIVERIES_URL: http://deliveries:8000
+      MESA_TABLES_URL: http://tables:8000
       MESA_SECURE_COOKIES: ${MESA_SECURE_COOKIES:-0}
       MESA_DATABASE_URL: postgresql+psycopg://mesa_orders:${ORDERS_DB_PASSWORD:?Set ORDERS_DB_PASSWORD}@postgres:5432/mesa_orders
     depends_on:
@@ -102,6 +104,10 @@ services:
       args:
         SERVICE: tables
     environment:
+      MESA_ORDERS_ACCESS_KEY: ${MESA_ORDERS_ACCESS_KEY:?Set MESA_ORDERS_ACCESS_KEY}
+      MESA_TABLES_ACCESS_KEY: ${MESA_TABLES_ACCESS_KEY:?Set MESA_TABLES_ACCESS_KEY}
+      MESA_CONFIGURATION_URL: http://configuration:8000
+      MESA_SECURE_COOKIES: ${MESA_SECURE_COOKIES:-0}
       MESA_DATABASE_URL: postgresql+psycopg://mesa_tables:${TABLES_DB_PASSWORD:?Set TABLES_DB_PASSWORD}@postgres:5432/mesa_tables
     depends_on:
       postgres:

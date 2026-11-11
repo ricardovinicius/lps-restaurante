@@ -137,7 +137,7 @@ def logout(request: Request, session: SessionContext, db=Depends(database_sessio
 
 @router.post("/internal/v1/sessions/verify", response_model=Principal)
 def verify(payload: Verification, request: Request, db=Depends(database_session)):
-    require_service_key(request, "MESA_CATALOG_ACCESS_KEY", "MESA_ORDERS_ACCESS_KEY")
+    require_service_key(request, "MESA_CATALOG_ACCESS_KEY", "MESA_ORDERS_ACCESS_KEY", "MESA_TABLES_ACCESS_KEY")
 
     session = lookup(db, payload.token)
     require_scope(session, payload.required_scope)

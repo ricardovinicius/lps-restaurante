@@ -102,18 +102,21 @@ async function customerRequest<T>(read: () => Promise<T>, recoverMissing = false
 
 export function isCheckoutRejection(code?: string) {
   return Boolean(code && ["feature_disabled", "configuration_changed", "catalog_changed", "price_changed",
-    "product_unavailable", "idempotency_conflict", "invalid_input"].includes(code));
+    "product_unavailable", "idempotency_conflict", "invalid_input", "table_not_found", "table_unavailable"].includes(code));
 }
 
 export type OrderState = "received" | "preparing" | "ready" | "dispatched" | "completed";
-export type Fulfillment = "pickup" | "delivery";
+export type Fulfillment = "pickup" | "delivery" | "table";
+export type Origin = "client" | "counter" | "tablet";
 export type DeliveryDetails = { available: boolean; address: string | null; dispatched_at: string | null };
 export type Order = {
   id: string;
   number: number;
-  origin: "client" | "counter";
+  origin: Origin;
   fulfillment: Fulfillment;
-  customer_name: string;
+  customer_name: string | null;
+  table_id?: string | null;
+  table_number?: number | null;
   state: OrderState;
   version: number;
   configuration_revision: number;
@@ -132,8 +135,9 @@ export type CreateOrder = {
   catalog_revision: number;
   origin: Order["origin"];
   fulfillment: Fulfillment;
-  customer_name: string;
+  customer_name?: string;
   address?: string;
+  table_id?: string;
   items: { product_id: string; quantity: number; expected_unit_price_cents: number }[];
 };
 
@@ -148,7 +152,7 @@ export type OrderOperation = {
 export type OrderPage = { items: Order[]; next_cursor: string | null };
 export type OperationSummary = {
   operation_id: string; idempotency_key: string; state: OrderOperation["state"];
-  customer_name: string; origin: Order["origin"]; fulfillment: Fulfillment; attempts: number;
+  customer_name: string | null; origin: Origin; fulfillment: Fulfillment; table_number: number | null; attempts: number;
   created_at: string; updated_at: string; error: OrderOperation["error"] | null;
 };
 export type OperationPage = { items: OperationSummary[]; next_cursor: string | null };
@@ -159,6 +163,16 @@ export type DispatchSummary = {
   created_at: string; updated_at: string; error: OrderOperation["error"] | null;
 };
 export type DispatchPage = { items: DispatchSummary[]; next_cursor: string | null };
+export type DiningTable = { id: string; number: number; available: boolean; version: number };
+export type TablePage = { items: DiningTable[]; next_cursor: string | null };
+export type TableContext = {
+  context_id: string; table_id: string; table_number: number; expires_at: string; csrf_token: string;
+};
+export type TableOrderPage = {
+  table: { id: string; number: number }; items: Order[]; next_cursor: string | null;
+  historical_total_cents: number; order_count: number;
+};
+const tables = "tables/v1/";
 
 export const api = {
   session: () => request<Session>(sessions + "/current"),
@@ -190,8 +204,10 @@ export const api = {
     return customerContextRequest;
   },
   createOrder: (body: CreateOrder, key: string, csrf?: string, contextId?: string) => {
+    // The owner context of the pending send: a retry from another identity is refused by the server.
+    const contextHeader = body.origin === "tablet" ? "X-Table-Context" : "X-Customer-Context";
     const send = () => request<Order | OrderOperation>(orders + "orders", "POST", body, csrf, {
-      "Idempotency-Key": key, ...(contextId ? { "X-Customer-Context": contextId } : {}),
+      "Idempotency-Key": key, ...(contextId ? { [contextHeader]: contextId } : {}),
     });
     return body.origin === "client" ? customerRequest(send) : send();
   },
@@ -214,6 +230,17 @@ export const api = {
     request<DispatchPage>(orders + "dispatches?" + new URLSearchParams({ state, ...(cursor ? { cursor } : {}) })),
   resumeDispatch: (id: string, csrf: string) =>
     request<PendingDispatch>(orders + "dispatches/" + id + "/resume", "POST", undefined, csrf),
+  tables: (includeUnavailable = false, cursor?: string) => request<TablePage>(tables + "tables?" + new URLSearchParams({
+    limit: "100", ...(includeUnavailable ? { include_unavailable: "true" } : {}), ...(cursor ? { cursor } : {}),
+  })),
+  setTableAvailability: (table: DiningTable, available: boolean, csrf: string) =>
+    request<DiningTable>(tables + "tables/" + table.id, "PATCH", { expected_version: table.version, available }, csrf),
+  provisionTable: (tableId: string, csrf: string) =>
+    request<TableContext>(tables + "table-contexts", "POST", { table_id: tableId }, csrf),
+  currentTableContext: () => request<TableContext>(tables + "table-contexts/current"),
+  revokeTableContext: (csrf: string) => request<void>(tables + "table-contexts/current", "DELETE", undefined, csrf),
+  tableOrders: (cursor?: string) =>
+    request<TableOrderPage>(orders + "table-orders?" + new URLSearchParams(cursor ? { cursor } : {})),
 };
 
 export function errorMessage(error: unknown) {

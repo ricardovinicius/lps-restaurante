@@ -8,13 +8,17 @@ export type Pending = {
   payload: CreateOrder;
   operationId?: string;
   customerContextId?: string;
+  tableContextId?: string;
 };
+
+export type TableChoice = { id: string; number: number };
 
 export type Draft = {
   items: CartItem[];
   customerName: string;
   fulfillment?: Fulfillment;
   address: string;
+  table?: TableChoice;
   configurationRevision?: number;
   pending?: Pending;
   reviewRequired?: boolean;
@@ -34,9 +38,22 @@ function readDraft(key: string): Draft {
   return emptyDraft();
 }
 
-export function useOrderDraft(origin: Order["origin"], staffUsername?: string) {
-  // The key predates deliveries; keeping it preserves carts and pending sends across upgrades.
-  const storageKey = "mesa-facil-pickup-" + origin + (staffUsername ? ":" + staffUsername : "");
+// The key predates deliveries; keeping it preserves carts and pending sends across upgrades.
+// The scope separates carts per operator and per tablet context.
+function storageKeyFor(origin: Order["origin"], scope?: string) {
+  return "mesa-facil-pickup-" + origin + (scope ? ":" + scope : "");
+}
+
+export function storedPendingSend(origin: Order["origin"], scope: string) {
+  try {
+    return readDraft(storageKeyFor(origin, scope)).pending;
+  } catch {
+    return undefined;
+  }
+}
+
+export function useOrderDraft(origin: Order["origin"], scope?: string) {
+  const storageKey = storageKeyFor(origin, scope);
   const mounted = useRef(true);
   const [draft, setDraft] = useState(() => readDraft(storageKey));
   const currentDraft = useRef(draft);

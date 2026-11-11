@@ -1,14 +1,16 @@
 # orders
 
 Serviço FastAPI independente com banco e role `mesa_orders`, modelos SQLAlchemy
-e histórico Alembic em `migrations/`. Cria retiradas e entregas com snapshots e
-idempotência, mantém a fila, o acompanhamento e as transições com controle de
+e histórico Alembic em `migrations/`. Cria retiradas, entregas e pedidos de mesa
+(Cliente, Balcão e Comanda) com snapshots e idempotência, mantém a fila, o acompanhamento e as transições com controle de
 concorrência. É a fonte canônica do estado público, inclusive de "Saiu para entrega".
 A prontidão exige o banco/usuário corretos e schema na revisão atual.
 
 As chamadas internas de admissão, cotação, endereço e despacho usam
-`MESA_ORDERS_ACCESS_KEY`, `MESA_CONFIGURATION_URL`, `MESA_CATALOG_URL` e
-`MESA_DELIVERIES_URL`. O endereço fica em Entregas: Pedidos o guarda na operação só
+`MESA_ORDERS_ACCESS_KEY`, `MESA_CONFIGURATION_URL`, `MESA_CATALOG_URL`,
+`MESA_DELIVERIES_URL` e `MESA_TABLES_URL`. A identidade do tablet é verificada em Mesas
+a cada requisição; Pedidos guarda só o ID do contexto e o número da mesa como
+snapshot, e `GET /v1/table-orders` serve o “Já pedi” da mesa da credencial. O endereço fica em Entregas: Pedidos o guarda na operação só
 até o recibo remoto e o lê em lote nas consultas autorizadas. O contexto do cliente usa cookie
 HttpOnly; seu identificador público não autoriza a consulta de pedidos.
 

@@ -1,8 +1,8 @@
 # Contratos HTTP v1
 
-As rotas de Configuração, Acesso, Catálogo, retirada e entrega estão implementadas,
-incluindo admissões, cotações, endereços e despachos internos. Mesas, TV e resumo
-descrevem as etapas seguintes. Cada serviço gera OpenAPI a partir de seus modelos e rotas em `/openapi.json`.
+As rotas de Configuração, Acesso, Catálogo, retirada, entrega, Mesas e Comanda
+estão implementadas, incluindo admissões, cotações, endereços, despachos, validações
+de mesa e credenciais de tablet internas. TV e resumo descrevem as etapas seguintes. Cada serviço gera OpenAPI a partir de seus modelos e rotas em `/openapi.json`.
 Os contratos de saúde implementados estão em `docs/contracts/health-*.json`.
 
 ## Convenções
@@ -75,18 +75,18 @@ Cotação aceita é persistida por operation_id; replay com payload distinto ret
 | POST /v1/operations/{id}/resume | Admin + CSRF | — | Retoma needs_attention, com auditoria; 409 nos demais estados |
 | GET /v1/my-orders | Contexto cliente | status=active|completed?, cursor, limit | Pedidos apenas do contexto |
 | GET /v1/orders/{id} | Dono, mesa autorizada ou operador | — | Pedido e estado |
-| GET /v1/queue | Operador | fulfillment=pickup|delivery?, cursor, limit | Pedidos confirmados não concluídos |
+| GET /v1/queue | Operador | fulfillment=pickup|delivery|table?, cursor, limit | Pedidos confirmados não concluídos |
 | POST /v1/orders/{id}/transitions | Operador + CSRF | expected_version, target_state + Idempotency-Key | Pedido atualizado ou replay; 202 despacho pendente |
 | GET /v1/dispatches | Admin ou operador | state?, cursor, limit | Saídas para entrega; padrão needs_attention |
 | POST /v1/dispatches/{id}/resume | Admin + CSRF | — | 202 retoma needs_attention, com auditoria; 409 nos demais estados |
-| GET /v1/table-orders | Contexto tablet | cursor, limit | Histórico da mesa da credencial, incluindo concluídos |
+| GET /v1/table-orders | Contexto tablet | cursor, limit | `{table, items, next_cursor, historical_total_cents, order_count}` da mesa da credencial, mais recentes primeiro |
 | GET /v1/tv | Público com feature ativa | limit, preparing_cursor?, ready_cursor? | Páginas por estado: number, fulfillment, table_number |
 | GET /v1/summary | Admin | — | active_orders, completed_order_value_cents |
 
 Payload de criação:
 
-Aceita `origin=client|counter` e `fulfillment=pickup|delivery`. Mesa e tablet
-serão integrados na etapa 6. Na retirada, omitir `address`.
+Aceita `origin=client|counter|tablet` e `fulfillment=pickup|delivery|table`. Na
+retirada e na mesa, omitir `address`; fora da mesa, omitir `table_id`.
 
 ```json
 {
@@ -108,6 +108,21 @@ obrigatório somente para entrega (1–500). Mesa exige table_id; tablet deriva 
 ID da credencial e dispensa nome. Rejeitar combinações incompatíveis; validar origin
 contra o principal autenticado. Subtotal/taxa/total não são aceitos como autoridade
 do cliente. Para esse exemplo total = 2 × 3290 + 500 = 7080 centavos.
+
+Mesa: Cliente e Balcão enviam `customer_name` e `table_id` de uma mesa disponível;
+o Cliente escolhe a mesa sem comprovar presença, e o pedido aparece no histórico
+autorizado daquela mesa (limitação acadêmica). O tablet envia só `origin=tablet`,
+`fulfillment=table`, revisões e itens, com o cookie `mesa_table`, `X-CSRF-Token`
+do contexto e `X-Table-Context` igual ao contexto autenticado; nome ou `table_id`
+no corpo retornam 422 e outro contexto retorna 401 `table_context_changed`. Pedidos
+deriva a mesa da credencial antes do hash de idempotência. A confirmação exige o
+recibo de Mesas; `table_unavailable` e `table_not_found` rejeitam o envio. Pedidos
+de mesa retornam `table_id` e `table_number` (snapshot), `fee_cents=0` e seguem
+`received → preparing → ready → completed`. Toda resposta autorizada pela credencial
+da mesa omite `customer_name`, inclusive `GET /v1/orders/{id}` e `/v1/operations/{id}`.
+O tablet lê pedidos confirmados da sua mesa e só as tentativas do próprio contexto;
+sem Mesas, essas leituras retornam 503, exceto quando o mesmo navegador tem sessão
+válida de operador, que é verificada em seguida.
 
 Pedidos de entrega retornam `fee_cents=500` e `delivery`: `{available, address,
 dispatched_at}`, lido de Entregas a cada consulta autorizada do dono ou do operador.
@@ -146,10 +161,21 @@ exige confirmação explícita de que o resultado foi verificado com o atendimen
 
 | Método / caminho | Acesso | Entrada | Resultado |
 | --- | --- | --- | --- |
-| GET /v1/tables | Operador ou cliente com mesas ativas | cursor, limit | id, number, available |
-| POST /v1/table-contexts | Operador + CSRF | table_id | Credencial de tablet com mesa e expires_at |
-| POST /internal/v1/validations/{operation_id} | Pedidos | table_id | Snapshot de mesa válida e ativa, idempotente |
-| POST /internal/v1/table-contexts/verify | Serviço autorizado | token | Mesa e escopos ou 401/403 |
+| GET /v1/tables | Público com `tables` ativa; staff com `include_unavailable=true` | cursor (UUID), limit | id, number, available, version |
+| PATCH /v1/tables/{id} | Operador + CSRF | expected_version, available | Mesa atualizada; 409 `table_changed` |
+| POST /v1/table-contexts | Operador + CSRF; `tables` e `tablet` ativas | table_id de mesa disponível | 201 cookie `mesa_table` e `{context_id, table_id, table_number, expires_at, csrf_token}` |
+| GET /v1/table-contexts/current | Cookie `mesa_table` válido | — | Metadados do contexto; 401 `table_context_required` |
+| DELETE /v1/table-contexts/current | Operador + CSRF | — | 204; revoga o contexto e remove o cookie |
+| POST /internal/v1/validations/{operation_id} | Pedidos | table_id | 201 recibo `{operation_id, table_id, table_number}` ou 200 replay; 404/409 |
+| POST /internal/v1/table-contexts/verify | Pedidos | token, csrf_token? | `{context_id, table_id, table_number, expires_at}`; 401 credencial inválida |
+
+O cookie `mesa_table` é HttpOnly, SameSite=Lax, caminho `/api` e vale 8 horas; Mesas
+guarda só o hash. Não há renovação: expirado, perdido ou revogado, o operador vincula
+de novo e tentativas pendentes são conferidas na Verificação de envios. Vincular outra
+mesa revoga o contexto anterior do navegador. Um contexto por navegador. Features e
+disponibilidade não invalidam a credencial; só bloqueiam novos pedidos. A validação
+bloqueia a linha da mesa, como a mudança de disponibilidade, e um recibo emitido
+continua valendo mesmo após a mesa ficar indisponível.
 
 O contexto demonstra histórico por mesa, não por visita. Provisionamento pelo
 operador não é autenticação de clientes de um restaurante comercial.

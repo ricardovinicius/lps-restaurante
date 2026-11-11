@@ -1,7 +1,7 @@
 import { useCallback, useState, type FormEvent } from "react";
 import { api, errorMessage, type OrderOperation } from "../api";
 import { usePolling } from "../hooks/usePolling";
-import { currency, fulfillmentNames, stateNames } from "../ordering/format";
+import { currency, fulfillmentNames, identification, stateNames } from "../ordering/format";
 import { useStaff } from "./Staff";
 
 const operationNames = { pending: "Em processamento", needs_attention: "Precisa de atenção", rejected: "Rejeitado", succeeded: "Confirmado" };
@@ -65,7 +65,7 @@ export function Operations() {
     {feedback && <p role="status">{feedback}</p>}
     {sync.value?.page.items.length === 0 && <p>Nenhum envio encontrado.</p>}
     {sync.value?.page.items.map((operation) => <article className="info-card" key={operation.operation_id}>
-      <h3>{operation.customer_name} · {fulfillmentNames[operation.fulfillment]} · {operationNames[operation.state]}</h3>
+      <h3>{identification(operation)} · {fulfillmentNames[operation.fulfillment]} · {operationNames[operation.state]}</h3>
       <p>Referência: <code>{operation.idempotency_key}</code></p>
       <p>{new Date(operation.created_at).toLocaleString("pt-BR")} · Tentativas: {operation.attempts}</p>
       {operation.error && <p>{operation.error.message}</p>}
@@ -78,7 +78,7 @@ export function Operations() {
     {detail && <section className="info-card" aria-label="Resultado do envio">
       <h3>{operationNames[detail.state]}</h3>
       {detail.error && <p>{detail.error.message}</p>}
-      {detail.order && <p>Pedido #{detail.order.number} · {detail.order.customer_name} · {stateNames[detail.order.state]} · {currency.format(detail.order.total_cents / 100)}</p>}
+      {detail.order && <p>Pedido #{detail.order.number} · {identification(detail.order)} · {stateNames[detail.order.state]} · {currency.format(detail.order.total_cents / 100)}</p>}
       {detail.state === "needs_attention" && (role === "admin"
         ? <button className="primary" disabled={busy || Boolean(sync.error)} onClick={() => void resume(detail)}>Retomar envio</button>
         : <p>Solicite a retomada a um administrador pela área Administração → Envios.</p>)}

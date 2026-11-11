@@ -6,9 +6,10 @@ Linha de Produtos de Software para restaurantes, em implementação iterativa.
 
 O gateway serve a interface React. A Administração usa as APIs de Configuração
 e Catálogo para persistir funcionalidades, preços e disponibilidade no PostgreSQL.
-O Cliente cria e acompanha retiradas e entregas persistidas; o Balcão registra
+O Cliente cria e acompanha retiradas, entregas e pedidos de mesa; o Balcão registra
 pedidos e controla os estados Recebido, Em preparo, Pronto, Saiu para entrega e
-Concluído. Entregas guarda endereço, taxa fixa e despacho.
+Concluído. Entregas guarda endereço, taxa fixa e despacho. Mesas valida as mesas e
+vincula tablets à Comanda digital, que envia rodadas e mostra o histórico “Já pedi”.
 
 ```bash
 cp .env.example .env
@@ -33,7 +34,7 @@ uv run --frozen pytest -q tests/integration
 python3 scripts/verify_infrastructure.py
 ```
 
-As jornadas de retirada e entrega no navegador estão em `web/e2e/`. Consulte os comandos e
+As jornadas de retirada, entrega, mesa e Comanda no navegador estão em `web/e2e/`. Consulte os comandos e
 os cuidados com dados de teste em [tests/e2e/README.md](tests/e2e/README.md).
 
 ## Executar o protótipo

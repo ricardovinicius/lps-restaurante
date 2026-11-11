@@ -3,7 +3,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import BigInteger, CheckConstraint, DateTime, ForeignKey, Identity, Integer, JSON, String, UniqueConstraint, Uuid, func
+from sqlalchemy import BigInteger, CheckConstraint, DateTime, ForeignKey, Identity, Index, Integer, JSON, String, UniqueConstraint, Uuid, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -32,6 +32,11 @@ class Order(Base):
         CheckConstraint("origin = 'tablet' OR length(trim(customer_name)) > 0 AND customer_name IS NOT NULL", name="customer_required"),
         CheckConstraint("total_cents >= fee_cents AND fee_cents >= 0", name="valid_totals"),
         CheckConstraint("version > 0 AND configuration_revision > 0 AND catalog_revision > 0", name="positive_revisions"),
+        CheckConstraint(
+            "fulfillment = 'table' OR (table_id IS NULL AND table_number IS NULL)", name="table_data_only_for_tables",
+        ),
+        CheckConstraint("table_number IS NULL OR table_number > 0", name="positive_table_number"),
+        Index("ix_orders_table_history", "table_id", "created_at", "id"),
     )
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
@@ -41,6 +46,7 @@ class Order(Base):
     customer_name: Mapped[str | None] = mapped_column(String(120))
     customer_context_id: Mapped[UUID | None] = mapped_column(ForeignKey("customer_contexts.id"), index=True)
     table_id: Mapped[UUID | None] = mapped_column(Uuid)
+    table_number: Mapped[int | None] = mapped_column(Integer)
     state: Mapped[str] = mapped_column(String(12), nullable=False, index=True)
     version: Mapped[int] = mapped_column(Integer, nullable=False)
     configuration_revision: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -106,6 +112,7 @@ class CheckoutOperation(Base):
     order_id: Mapped[UUID] = mapped_column(Uuid, nullable=False, unique=True)
     principal_id: Mapped[str] = mapped_column(String(100), nullable=False)
     customer_context_id: Mapped[UUID | None] = mapped_column(ForeignKey("customer_contexts.id"))
+    table_context_id: Mapped[UUID | None] = mapped_column(Uuid)
     idempotency_key: Mapped[UUID] = mapped_column(Uuid, nullable=False)
     payload_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     payload: Mapped[dict] = mapped_column(JSON, nullable=False)
@@ -113,6 +120,7 @@ class CheckoutOperation(Base):
     admission: Mapped[dict | None] = mapped_column(JSON)
     quote: Mapped[dict | None] = mapped_column(JSON)
     delivery: Mapped[dict | None] = mapped_column(JSON)
+    table: Mapped[dict | None] = mapped_column(JSON)
     error: Mapped[dict | None] = mapped_column(JSON)
     error_status: Mapped[int | None] = mapped_column(Integer)
     attempts: Mapped[int] = mapped_column(Integer, nullable=False)

@@ -3,8 +3,16 @@
 As jornadas de retirada estão em `web/e2e/pickup.spec.ts`, com Playwright sobre
 as APIs e o PostgreSQL reais. Cobrem Cliente e Balcão em contextos independentes,
 persistência do carrinho, estados, resposta perdida, reenvio sem duplicidade,
-revisão de preços e respostas atrasadas após navegação. Rodadas da mesa e TV serão
-adicionadas nas próximas etapas.
+revisão de preços e respostas atrasadas após navegação. A TV será adicionada na
+próxima etapa.
+
+`web/e2e/tables.spec.ts` cobre o pedido de mesa pelo Cliente concluído no Balcão,
+o vínculo de tablet pelo operador com duas rodadas e o “Já pedi” com o total de todas
+as origens, o isolamento de outra mesa e o bloqueio de novas rodadas ao desabilitar
+Comanda e Mesas, preservando histórico e conclusão. Também verifica que a Comanda só
+abre após encerrar a sessão do operador, inclusive quando a resposta do logout se perde,
+e que a referência de uma rodada pendente continua visível depois de perder o cookie da
+mesa, com o novo vínculo bloqueado enquanto o tablet é verificado.
 
 `web/e2e/delivery.spec.ts` cobre a escolha da modalidade, endereço e taxa no
 carrinho, o endereço na fila do Balcão, "Saiu para entrega" e conclusão vistos pelo
@@ -37,6 +45,7 @@ mesa_e2e() { MESA_HTTP_PORT=8081 docker compose -p mesa-recovery-test-local --en
 mesa_e2e up --build -d --wait
 mesa_e2e exec -T configuration python -m mesa_platform.seed configuration
 mesa_e2e exec -T catalog python -m mesa_platform.seed catalog
+mesa_e2e exec -T tables python -m mesa_platform.seed tables
 MESA_BASE_URL=http://127.0.0.1:8081 MESA_TEST_COMPOSE_PROJECT=mesa-recovery-test-local npm --prefix web run test:e2e
 mesa_e2e down --volumes
 ```

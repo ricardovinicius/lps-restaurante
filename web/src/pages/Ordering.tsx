@@ -1,13 +1,20 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import type { Fulfillment, Order } from "../api";
 import { PageHeading } from "../components";
+import { CartItems } from "../components/ordering/CartItems";
+import { MenuProducts } from "../components/ordering/MenuProducts";
+import { TableSelect } from "../components/ordering/TableSelect";
 import { OrderFeed } from "../components/orders/OrderFeed";
 import { Synchronization } from "../components/orders/Synchronization";
-import { currency, fulfillmentNames } from "../ordering/format";
+import { currency, fulfillmentNames, tableLabel } from "../ordering/format";
 import { useOrdering } from "../ordering/useOrdering";
 
-const fulfillmentChoices: Record<Fulfillment, string> = { pickup: "Retirada no balcão", delivery: "Entrega no endereço" };
-const confirmLabels: Record<Fulfillment, string> = { pickup: "Confirmar retirada", delivery: "Confirmar entrega" };
+const fulfillmentChoices: Record<Fulfillment, string> = {
+  pickup: "Retirada no balcão", delivery: "Entrega no endereço", table: "Atendimento na mesa",
+};
+const confirmLabels: Record<Fulfillment, string> = {
+  pickup: "Confirmar retirada", delivery: "Confirmar entrega", table: "Confirmar pedido na mesa",
+};
 
 type OrderingProps = {
   csrf?: string;
@@ -17,8 +24,6 @@ type OrderingProps = {
 
 export function Ordering({ csrf, staffUsername, onCreated }: OrderingProps) {
   const [lastOrder, setLastOrder] = useState<Order>();
-  const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("");
   const [verified, setVerified] = useState(false);
   const created = useCallback((order: Order) => {
     setLastOrder(order);
@@ -32,13 +37,9 @@ export function Ordering({ csrf, staffUsername, onCreated }: OrderingProps) {
   const editable = !busy && !draft.pending;
   const locked = !editable || draft.reviewRequired || !fulfillment;
   const delivery = fulfillment === "delivery";
-  const products = catalog?.items.filter((product) => (!category || product.category_id === category)
-    && product.name.toLocaleLowerCase("pt-BR").includes(search.trim().toLocaleLowerCase("pt-BR"))) ?? [];
-  const categories = [...new Map(
-    catalog?.items.map((product) => [product.category_id, product.category_name]),
-  ).entries()];
+  const atTable = fulfillment === "table";
   const checkoutDisabled = locked || !draft.items.length || !draft.customerName.trim()
-    || (delivery && !draft.address.trim())
+    || (delivery && !draft.address.trim()) || (atTable && !draft.table)
     || Boolean(ordering.catalogError) || Boolean(ordering.configurationSync.error);
 
   function checkout(event: FormEvent<HTMLFormElement>) {
@@ -57,56 +58,17 @@ export function Ordering({ csrf, staffUsername, onCreated }: OrderingProps) {
     </PageHeading>}
     <Synchronization error={ordering.configurationSync.error} syncedAt={ordering.configurationSync.syncedAt} />
     {configuration && !ordering.fulfillments.length && <p role="status" className="info-card">
-      Retirada e entrega estão desabilitadas para novos pedidos.
+      Nenhuma modalidade de atendimento está habilitada para novos pedidos.
       Os pedidos já confirmados continuam disponíveis para acompanhamento e conclusão.
     </p>}
     {(ordering.feedback || ordering.storageError) && <p role="status" className="info-card">
       {ordering.storageError || ordering.feedback}
     </p>}
     <div className="menu-layout ordering-layout">
-      <section aria-label="Produtos do cardápio">
-        <div className="toolbar">
-          <div className="categories" aria-label="Categorias">
-            <button className={!category ? "active" : ""} onClick={() => setCategory("")}>Todos</button>
-            {categories.map(([id, name]) => <button
-              key={id}
-              className={category === id ? "active" : ""}
-              onClick={() => setCategory(id)}
-            >{name}</button>)}
-          </div>
-          <input
-            className="search" type="search" aria-label="Buscar produtos" placeholder="Buscar produto"
-            maxLength={120} value={search} onChange={(event) => setSearch(event.target.value)}
-          />
-        </div>
-        {ordering.catalogError && <div className="info-card">
-          <p role="alert">{ordering.catalogError}</p>
-          <button className="secondary" onClick={() => void ordering.loadCatalog()}>Recarregar cardápio</button>
-        </div>}
-        {!catalog && !ordering.catalogError && <p role="status">Carregando cardápio…</p>}
-        {catalog && !products.length && <p>Nenhum produto encontrado.</p>}
-        <div className="products">
-          {products.map((product) => <article className="product" key={product.id}>
-            {product.image_url && <div className="product-image">
-              <img src={product.image_url} alt="" loading="lazy" />
-            </div>}
-            <div className="product-body">
-              <small>{product.category_name}</small>
-              <h3>{product.name}</h3>
-              <p>{product.description}</p>
-              <div className="product-bottom">
-                <strong className="price">{currency.format(product.price_cents / 100)}</strong>
-                <button
-                  className="add" aria-label={"Adicionar " + product.name}
-                  disabled={locked || !product.available
-                    || (draft.items.length >= 50 && !draft.items.some((item) => item.product_id === product.id))}
-                  onClick={() => ordering.changeQuantity(product, 1)}
-                >+</button>
-              </div>
-            </div>
-          </article>)}
-        </div>
-      </section>
+      <MenuProducts
+        catalog={catalog} catalogError={ordering.catalogError} onReload={() => void ordering.loadCatalog()}
+        items={draft.items} locked={locked} onAdd={(product) => ordering.changeQuantity(product, 1)}
+      />
       <aside className="cart" aria-label="Seu pedido">
         <div className="cart-header">
           <h2>{csrf ? "Novo pedido" : "Seu pedido"}</h2>
@@ -123,30 +85,19 @@ export function Ordering({ csrf, staffUsername, onCreated }: OrderingProps) {
           {!draft.items.length && <div className="cart-empty">
             <strong>Seu carrinho está vazio</strong><p>Adicione produtos para começar.</p>
           </div>}
-          {draft.items.map((item) => <div className="cart-item" key={item.product_id}>
-            <div>
-              <strong>{item.name}</strong>
-              <small>{currency.format(item.unit_price_cents / 100)} por unidade</small>
-              <div><small>Subtotal: {currency.format(item.quantity * item.unit_price_cents / 100)}</small></div>
-            </div>
-            <div className="quantity">
-              <button
-                type="button" disabled={locked} aria-label={"Diminuir " + item.name}
-                onClick={() => ordering.changeQuantity(item, -1)}
-              >−</button>
-              <span aria-label={"Quantidade de " + item.name}>{item.quantity}</span>
-              <button
-                type="button" disabled={locked || item.quantity >= 99} aria-label={"Aumentar " + item.name}
-                onClick={() => ordering.changeQuantity(item, 1)}
-              >+</button>
-            </div>
-          </div>)}
+          <CartItems items={draft.items} locked={locked} onChange={ordering.changeQuantity} />
           <label htmlFor={csrf ? "counter-customer" : "customer-name"}>Nome para identificação</label>
           <input
             id={csrf ? "counter-customer" : "customer-name"} value={draft.customerName}
             required minLength={1} maxLength={120} autoComplete="name" disabled={busy || Boolean(draft.pending)}
             onChange={(event) => ordering.changeName(event.target.value)}
           />
+          {atTable && (draft.pending
+            ? draft.table && <p>{tableLabel(draft.table.number)}</p>
+            : <TableSelect
+              id={csrf ? "counter-table" : "customer-table"} value={draft.table} disabled={!editable}
+              revision={configuration?.revision} onChange={ordering.changeTable}
+            />)}
           {delivery && <>
             <label htmlFor={csrf ? "counter-address" : "delivery-address"}>Endereço de entrega</label>
             <input

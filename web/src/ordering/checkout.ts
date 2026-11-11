@@ -9,9 +9,13 @@ type CheckoutOptions = {
   menu: OrderMenu;
   origin: Order["origin"];
   csrf?: string;
+  tableContextId?: string;
   onCreated: (order: Order) => void;
   setFeedback: (message: string) => void;
 };
+
+const identityFailures = ["customer_recovery_required", "invalid_customer_context", "invalid_table_context",
+  "table_context_changed"];
 
 function usePendingOperation(
   operationId: string | undefined,
@@ -67,7 +71,7 @@ function usePendingOperation(
   }, [operationId, confirmed, reject, origin, saveDraft, currentDraft, setFeedback]);
 }
 
-export function useOrderCheckout({ store, menu, origin, csrf, onCreated, setFeedback }: CheckoutOptions) {
+export function useOrderCheckout({ store, menu, origin, csrf, tableContextId, onCreated, setFeedback }: CheckoutOptions) {
   const { draft, currentDraft, saveDraft, mounted, archiveVerifiedAttempt } = store;
   const { configuration, currentConfiguration, catalog } = menu;
   const [busy, setBusy] = useState(false);
@@ -79,11 +83,13 @@ export function useOrderCheckout({ store, menu, origin, csrf, onCreated, setFeed
     saveDraft({
       ...emptyDraft(),
       fulfillment: currentDraft.current.fulfillment,
+      table: currentDraft.current.table,
       configurationRevision: currentConfiguration.current?.revision,
     });
-    setFeedback("Pedido #" + order.number + " confirmado. Acompanhe o andamento abaixo.");
+    // The Comanda shows its own confirmation banner for each round.
+    setFeedback(origin === "tablet" ? "" : "Pedido #" + order.number + " confirmado. Acompanhe o andamento abaixo.");
     onCreated(order);
-  }, [saveDraft, onCreated, mounted, currentConfiguration, currentDraft, setFeedback]);
+  }, [saveDraft, onCreated, mounted, currentConfiguration, currentDraft, setFeedback, origin]);
 
   const reject = useCallback((message: string) => {
     if (!mounted.current) return;
@@ -94,20 +100,29 @@ export function useOrderCheckout({ store, menu, origin, csrf, onCreated, setFeed
 
   usePendingOperation(draft.pending?.operationId, origin, store, confirmed, reject, setFeedback);
 
+  function identificationFor(current: Draft) {
+    // The tablet is identified by its credential: no name and no table in the body.
+    if (origin === "tablet") return {};
+    return { customer_name: current.customerName.trim() };
+  }
+
   function newPending(current: Draft): Pending | undefined {
-    const fulfillment = selectedFulfillment(current, configuration);
+    const fulfillment = selectedFulfillment(current, configuration, origin);
     const address = current.address.trim();
-    if (!configuration || !catalog || !fulfillment || current.reviewRequired) return undefined;
-    if (!current.items.length || !current.customerName.trim()) return undefined;
+    if (!configuration || !catalog || !fulfillment || current.reviewRequired || !current.items.length) return undefined;
+    if (origin !== "tablet" && !current.customerName.trim()) return undefined;
     if (fulfillment === "delivery" && !address) return undefined;
+    if (fulfillment === "table" && origin !== "tablet" && !current.table) return undefined;
 
     return {
       key: crypto.randomUUID(),
+      tableContextId,
       payload: {
         configuration_revision: configuration.revision,
         catalog_revision: catalog.revision,
-        origin, fulfillment, customer_name: current.customerName.trim(),
+        origin, fulfillment, ...identificationFor(current),
         ...(fulfillment === "delivery" ? { address } : {}),
+        ...(fulfillment === "table" && origin !== "tablet" ? { table_id: current.table!.id } : {}),
         items: current.items.map((item) => ({
           product_id: item.product_id,
           quantity: item.quantity,
@@ -144,7 +159,8 @@ export function useOrderCheckout({ store, menu, origin, csrf, onCreated, setFeed
         pending.customerContextId = context.context_id;
         if (!saveDraft({ ...currentDraft.current, pending })) return;
       }
-      const result = await api.createOrder(pending.payload, pending.key, csrf, pending.customerContextId);
+      const owner = origin === "tablet" ? pending.tableContextId : pending.customerContextId;
+      const result = await api.createOrder(pending.payload, pending.key, csrf, owner);
       if (!mounted.current) return;
       if ("operation_id" in result) {
         if (result.state === "succeeded" && result.order) confirmed(result.order);
@@ -158,8 +174,7 @@ export function useOrderCheckout({ store, menu, origin, csrf, onCreated, setFeed
     } catch (error) {
       if (!mounted.current) return;
       if (error instanceof ApiError && isCheckoutRejection(error.code)) reject(error.message);
-      else if (error instanceof ApiError
-        && ["customer_recovery_required", "invalid_customer_context"].includes(error.code ?? "")) {
+      else if (error instanceof ApiError && identityFailures.includes(error.code ?? "")) {
         saveDraft({ ...currentDraft.current, recoveryRequired: true });
         setFeedback(error.message);
       } else {
@@ -196,7 +211,7 @@ export function useOrderCheckout({ store, menu, origin, csrf, onCreated, setFeed
 
     try {
       archiveVerifiedAttempt();
-      await api.startNewCustomerContext();
+      if (origin === "client") await api.startNewCustomerContext();
       if (!mounted.current) return;
       saveDraft({ ...currentDraft.current, pending: undefined, recoveryRequired: false, reviewRequired: true });
       setFeedback("Novo atendimento iniciado. A tentativa anterior continua registrada para consulta no atendimento. "

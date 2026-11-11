@@ -2,7 +2,7 @@ from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import select
 
 from mesa_platform.http import ApiError, Input, database_session
@@ -19,11 +19,29 @@ router = APIRouter(prefix="/internal/v1", dependencies=[Depends(require_orders_s
 class AdmissionInput(Input):
     principal: str = Field(min_length=1, max_length=200)
     revision: int = Field(strict=True, gt=0, le=2147483647)
-    origin: Literal["client", "counter"]
-    fulfillment: Literal["pickup", "delivery"]
+    origin: Literal["client", "counter", "tablet"]
+    fulfillment: Literal["pickup", "delivery", "table"]
+
+    @model_validator(mode="after")
+    def tablet_orders_at_tables(self):
+        if self.origin == "tablet" and self.fulfillment != "table":
+            raise ValueError("A Comanda digital só cria pedidos para mesa.")
+
+        return self
 
 
-FULFILLMENT_NAMES = {"pickup": "A retirada", "delivery": "A entrega"}
+# Each new order needs its fulfillment feature; tablet orders also need the tablet feature.
+REQUIRED_FEATURES = {
+    "pickup": ("pickup", "A retirada está desabilitada para novos pedidos."),
+    "delivery": ("delivery", "A entrega está desabilitada para novos pedidos."),
+    "table": ("tables", "O atendimento em mesa está desabilitado para novos pedidos."),
+    "tablet": ("tablet", "A Comanda digital está desabilitada para novos pedidos."),
+}
+
+
+def required_features(payload):
+    keys = [payload.fulfillment] + (["tablet"] if payload.origin == "tablet" else [])
+    return [REQUIRED_FEATURES[key] for key in keys]
 
 
 class AdmissionReceipt(BaseModel):
@@ -54,9 +72,9 @@ def admit(operation_id: UUID, payload: AdmissionInput, response: Response, db=De
             "revision": configuration.revision,
         })
 
-    if not getattr(configuration, payload.fulfillment):
-        name = FULFILLMENT_NAMES[payload.fulfillment]
-        raise ApiError(403, "feature_disabled", f"{name} está desabilitada para novos pedidos.")
+    for feature, message in required_features(payload):
+        if not getattr(configuration, feature):
+            raise ApiError(403, "feature_disabled", message)
 
     receipt = AdmissionReceipt(configuration_revision=configuration.revision)
     db.add(Admission(

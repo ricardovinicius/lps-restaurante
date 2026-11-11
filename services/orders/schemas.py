@@ -23,16 +23,17 @@ class CheckoutItem(Input):
     expected_unit_price_cents: int = Field(strict=True, gt=0, le=2147483647)
 
 
-Fulfillment = Literal["pickup", "delivery"]
+Fulfillment = Literal["pickup", "delivery", "table"]
 
 
 class Checkout(Input):
     configuration_revision: int = Field(strict=True, gt=0, le=2147483647)
     catalog_revision: int = Field(strict=True, gt=0, le=2147483647)
-    origin: Literal["client", "counter"]
+    origin: Literal["client", "counter", "tablet"]
     fulfillment: Fulfillment
-    customer_name: str = Field(min_length=1, max_length=120)
+    customer_name: str | None = Field(default=None, min_length=1, max_length=120)
     address: str | None = Field(default=None, min_length=1, max_length=500)
+    table_id: UUID | None = None
     items: list[CheckoutItem] = Field(min_length=1, max_length=50)
 
     @field_validator("customer_name", mode="before")
@@ -49,6 +50,29 @@ class Checkout(Input):
     @classmethod
     def trim_address(cls, value):
         return value.strip() if isinstance(value, str) else value
+
+    @model_validator(mode="after")
+    def identification_matches_origin(self):
+        if self.origin == "tablet":
+            if self.fulfillment != "table":
+                raise ValueError("A Comanda digital só cria pedidos para mesa.")
+
+            # The table comes from the tablet credential, never from the request body.
+            if self.customer_name is not None or self.table_id is not None:
+                raise ValueError("A Comanda identifica a mesa pela credencial; não envie nome nem mesa.")
+
+            return self
+
+        if self.customer_name is None:
+            raise ValueError("Informe seu nome.")
+
+        if self.fulfillment == "table" and self.table_id is None:
+            raise ValueError("Escolha a mesa do pedido.")
+
+        if self.fulfillment != "table" and self.table_id is not None:
+            raise ValueError("Mesa só é aceita em pedidos para mesa.")
+
+        return self
 
     @model_validator(mode="after")
     def address_matches_fulfillment(self):
@@ -99,6 +123,8 @@ class OrderView(BaseModel):
     origin: str
     fulfillment: str
     customer_name: str | None
+    table_id: UUID | None = None
+    table_number: int | None = None
     state: str
     version: int
     configuration_revision: int
@@ -140,9 +166,10 @@ class OperationSummary(BaseModel):
     operation_id: UUID
     idempotency_key: UUID
     state: str
-    customer_name: str
+    customer_name: str | None
     origin: str
     fulfillment: str
+    table_number: int | None
     attempts: int
     created_at: datetime
     updated_at: datetime
@@ -176,3 +203,18 @@ class DispatchSummary(BaseModel):
 class DispatchPage(BaseModel):
     items: list[DispatchSummary]
     next_cursor: str | None
+
+
+class TableIdentity(BaseModel):
+    id: UUID
+    number: int
+
+
+class TableOrderPage(BaseModel):
+    """"Já pedi": every order of the credential's table, newest first."""
+
+    table: TableIdentity
+    items: list[OrderView]
+    next_cursor: str | None
+    historical_total_cents: int
+    order_count: int

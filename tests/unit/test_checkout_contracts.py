@@ -85,7 +85,7 @@ def test_admission_accepts_pickup_and_delivery_origins(origin, fulfillment):
     ("revision", 0), ("revision", 2147483648), ("revision", True),
     ("revision", "1"), ("revision", 1.0),
     ("origin", "tablet"), ("origin", "admin"), ("origin", True),
-    ("fulfillment", "table"), ("fulfillment", "tables"), ("fulfillment", False),
+    ("fulfillment", "salao"), ("fulfillment", "tables"), ("fulfillment", False),
     ("configuration_revision", 1),
 ])
 def test_admission_rejects_invalid_and_ambiguous_fields(field, value):

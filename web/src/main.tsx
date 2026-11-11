@@ -9,6 +9,8 @@ import { Counter } from "./pages/Counter";
 import { Ordering } from "./pages/Ordering";
 import { Operations } from "./pages/Operations";
 import { Settings } from "./pages/Settings";
+import { Tablet } from "./pages/Tablet";
+import { TabletSetup } from "./pages/TabletSetup";
 import { AdminLayout, LegacyEntry, Staff, useStaff } from "./pages/Staff";
 import "../../prototypes/mesa-facil/dist/style.css";
 import "./style.css";
@@ -55,7 +57,7 @@ function CatalogRoute() {
   return <Catalog csrf={useStaff().csrf_token} />;
 }
 
-function PendingArea({ feature, title }: { feature: "tablet" | "tv"; title: string }) {
+function PendingArea({ feature, title }: { feature: "tv"; title: string }) {
   return <>
     <PageHeading title={title} />
     <Load read={api.configuration}>{({ features }) => (
@@ -80,7 +82,10 @@ createRoot(document.getElementById("root")!).render(
         <Route path="balcao" element={<Staff role="operator" />}>
           <Route index element={<Counter />} />
         </Route>
-        <Route path="comanda" element={<PendingArea feature="tablet" title="Comanda digital" />} />
+        <Route path="comanda" element={<Tablet />} />
+        <Route path="comanda/configurar" element={<Staff role="operator" />}>
+          <Route index element={<TabletSetup />} />
+        </Route>
         <Route path="tv" element={<PendingArea feature="tv" title="Painel de TV" />} />
         <Route path="*" element={<PageHeading title="Página não encontrada"><Link to="/cliente">Abrir cardápio</Link></PageHeading>} />
       </Route>

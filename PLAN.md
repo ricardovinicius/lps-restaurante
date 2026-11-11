@@ -112,6 +112,37 @@ e pausado (timeout) no despacho, chamada remota concluída sem resposta para Ped
 e reinício de Pedidos antes da recuperação. O build React passou.
 Próxima etapa: Mesas e Comanda digital, T37–T42.
 
+### Iteração 6 — Mesas e Comanda digital
+
+T37–T42 concluídas, com os ajustes aprovados na revisão do planejamento. Mesas guarda
+as 12 mesas com disponibilidade versionada, recibos idempotentes de validação e
+credenciais da Comanda: o operador vincula o navegador a uma mesa, o cookie vale
+8 horas e só seu hash fica no banco. Não há renovação; expirado ou perdido, o operador
+vincula de novo. Um vínculo por navegador.
+
+Cliente e Balcão pedem para uma mesa disponível; o tablet envia rodadas sem nome nem
+mesa no corpo, porque Pedidos deriva a mesa da credencial. A criação e o retry exigem
+o contexto original (`X-Table-Context`), então um novo vínculo nunca reenvia a rodada
+antiga. A confirmação exige o recibo de Mesas, com a mesma recuperação durável das
+etapas anteriores; o worker conclui mesmo após a credencial expirar. O pedido guarda
+o número da mesa como snapshot. “Já pedi” mostra todo o histórico da mesa, de todas
+as origens, com total e contagem calculados no servidor e o aviso de que não é conta
+aberta. Features e disponibilidade bloqueiam só novos pedidos.
+
+Limites documentados: histórico permanente por mesa, não por visita; o Cliente escolhe
+a mesa sem comprovar presença; sem Mesas, o tablet não lê o “Já pedi” (503).
+
+A revisão da etapa corrigiu quatro falhas: a Comanda só abre depois que a sessão do
+operador é encerrada no tablet; leituras individuais pela credencial da mesa também
+omitem nomes; a referência de uma rodada pendente continua visível após perder o
+cookie, exigindo conferência antes de novo vínculo, inclusive enquanto o vínculo atual
+é verificado; Mesas indisponível não bloqueia um operador válido no mesmo navegador;
+e um logout concluído cuja resposta se perdeu é reconhecido como sessão encerrada.
+
+Passaram 157 testes unitários, 27 de integração com PostgreSQL 17 (sete de Mesas) e
+17 jornadas Playwright no Chromium (sete de mesa e Comanda). O build React passou.
+Próxima etapa: TV, resumo e sincronização, T43–T49.
+
 ## Etapa 1 — Contratos e estrutura
 
 Dependências: nenhuma.
@@ -247,17 +278,17 @@ falhas entre serviços possuem recuperação verificável.
 
 Dependências: etapa 4; integrar à fila multicanal da etapa 5.
 
-- [ ] T37 — Implementar cadastro demonstrativo, disponibilidade e validação de
+- [x] T37 — Implementar cadastro demonstrativo, disponibilidade e validação de
   mesas no serviço de Mesas.
-- [ ] T38 — Definir e implementar contexto de acesso do tablet e leitura permitida
+- [x] T38 — Definir e implementar contexto de acesso do tablet e leitura permitida
   por mesa, documentando o limite acadêmico da seleção explícita de mesa.
-- [ ] T39 — Implementar pedidos em mesa pelo Cliente e Balcão e rodadas
+- [x] T39 — Implementar pedidos em mesa pelo Cliente e Balcão e rodadas
   independentes pelo Tablet, com validação de features no servidor.
-- [ ] T40 — Migrar a Comanda digital: seleção de mesa, controles de toque,
+- [x] T40 — Migrar a Comanda digital: seleção de mesa, controles de toque,
   envio, confirmação e nova rodada mantendo a mesa selecionada.
-- [ ] T41 — Implementar “Já pedi” com itens, quantidades, valores, datas e estados,
+- [x] T41 — Implementar “Já pedi” com itens, quantidades, valores, datas e estados,
   incluindo concluídos e indicação de que o total é histórico.
-- [ ] T42 — Testar duas rodadas, filtro de mesa, estado vazio, mesa inválida e
+- [x] T42 — Testar duas rodadas, filtro de mesa, estado vazio, mesa inválida e
   bloqueio de novas operações com Comanda ou Mesas desabilitadas.
 
 Critério de conclusão: rodadas aparecem no histórico da mesa e no Balcão;

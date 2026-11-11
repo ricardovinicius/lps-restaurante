@@ -5,8 +5,8 @@
 O ambiente inclui os cinco serviços FastAPI com bancos e migrações independentes.
 As APIs de Configuração, Acesso e Catálogo atendem o frontend React pelo gateway.
 Retirada, entrega, fila do Balcão e acompanhamento usam Pedidos com persistência,
-idempotência e recuperação; Entregas guarda endereço, taxa e despacho. Mesa, Comanda
-e TV permanecem nas próximas etapas.
+idempotência e recuperação; Entregas guarda endereço, taxa e despacho. Mesas valida pedidos
+de mesa e as credenciais da Comanda digital. TV e resumo permanecem nas próximas etapas.
 
 `/health/live` informa que o processo responde. `/health/ready` exige conexão ao
 banco/usuário do serviço e revisão Alembic atual; não significa que os fluxos de
@@ -25,8 +25,12 @@ docker compose up --build -d --wait
 ```
 
 Se o arquivo `.env` já existia, adicione as variáveis de acesso listadas em
-`.env.example`, incluindo `MESA_ORDERS_ACCESS_KEY`. Preserve as credenciais
-PostgreSQL usadas pelo volume existente.
+`.env.example`, incluindo `MESA_ORDERS_ACCESS_KEY` e `MESA_TABLES_ACCESS_KEY`.
+Preserve as credenciais PostgreSQL usadas pelo volume existente.
+
+As migrações criam as tabelas, mas não os dados de demonstração. Sem o seed de
+Mesas não há mesas para pedidos nem para a Comanda, mesmo com a feature habilitada;
+o Balcão avisa quando nenhuma mesa está cadastrada.
 
 Na inicialização, cada serviço aplica suas próprias migrações antes de iniciar o
 Uvicorn. Um advisory lock transacional serializa tentativas simultâneas de migração.
@@ -133,6 +137,8 @@ PYTHONPATH=packages/mesa_platform/src uv run --frozen uvicorn services.configura
 | MESA_CONFIGURATION_URL | URL interna de Configuração, padrão `http://configuration:8000` |
 | MESA_CATALOG_URL | URL interna do Catálogo, padrão `http://catalog:8000` |
 | MESA_DELIVERIES_URL | URL interna de Entregas, padrão `http://deliveries:8000` |
+| MESA_TABLES_URL | URL interna de Mesas, padrão `http://tables:8000` |
+| MESA_TABLES_ACCESS_KEY | Credencial de Mesas para verificar sessões de operador em Configuração |
 | MESA_DEMO_ADMIN_PASSWORD | Senha inicial da conta demonstrativa `admin` |
 | MESA_DEMO_OPERATOR_PASSWORD | Senha inicial da conta demonstrativa `operator` |
 | MESA_SECURE_COOKIES | Use `1` ao servir a aplicação sobre HTTPS, padrão `0` para execução local |
@@ -222,6 +228,31 @@ recuperação, pare o serviço com `docker compose stop deliveries`, registre
 "Saiu para entrega" e observe o aviso de confirmação pendente; após
 `docker compose start deliveries`, o pedido avança sozinho em alguns segundos.
 
+## Mesas e Comanda digital
+
+Confirme que o seed de Mesas foi executado; ele cria as Mesas 01 a 12 e pode ser
+repetido sem sobrescrever a disponibilidade:
+
+```bash
+docker compose exec tables python -m mesa_platform.seed tables
+```
+
+Habilite **Atendimento em mesa** e **Comanda digital** na Administração. No Cardápio,
+escolha "Atendimento na mesa" e a mesa. No Balcão, a seção **Disponibilidade das
+mesas** bloqueia novas validações sem afetar pedidos aceitos.
+
+Para usar um tablet, abra [Comanda › vincular](http://localhost:8080/comanda/configurar)
+no próprio navegador do tablet, entre como `operator` e escolha a mesa. A conta do
+operador é encerrada ali e a [Comanda](http://localhost:8080/comanda) passa a enviar
+rodadas e mostrar o “Já pedi”. O vínculo vale 8 horas; depois disso, vincule de novo.
+O histórico é permanente por mesa e inclui pedidos do Cliente e do Balcão.
+
+`tests/integration/test_tables.py` cobre disponibilidade concorrente, regras de
+vínculo, pedidos de mesa pelas três origens, isolamento entre mesas, paginação e
+total do histórico, bloqueio por features e mesa indisponível, recibo perdido com
+reinício de Pedidos, conflito de `operation_id` entre mesas e conclusão de uma rodada
+depois de a credencial expirar.
+
 ## Verificação real da infraestrutura
 
 ```bash
@@ -251,7 +282,7 @@ nessa suíte; os testes ASGI unitários continuam usando um substituto de conex�
 
 ## Evidências e limites
 
-- 135 testes Python unitários, incluindo features, entradas, endereço, despacho e classificação de erros internos.
+- 157 testes Python unitários, incluindo features, entradas, endereço, despacho e classificação de erros internos.
 - Suíte de infraestrutura executada com PostgreSQL 17, cinco processos FastAPI e Nginx.
 - Docker inicialmente indisponível na iteração 1, acessível e validado na iteração 2.
 - O TestClient precisa de execução fora da restrição de sockets do sandbox.
@@ -268,12 +299,14 @@ nessa suíte; os testes ASGI unitários continuam usando um substituto de conex�
   de tentativas antigas, histórico sob demanda e retomada pela interface.
 - Iteração 5: 135 testes unitários, 20 de integração (sete de entrega) com
   PostgreSQL 17 e dez jornadas Playwright no Chromium, três delas de entrega.
-- Mesas, Comanda, TV e suas jornadas permanecem nas próximas etapas.
+- Iteração 6: 157 testes unitários, 27 de integração (sete de Mesas e Comanda) e
+  17 jornadas Playwright, sete delas de mesa e Comanda.
+- TV, resumo e suas jornadas permanecem nas próximas etapas.
 
 ## Próxima iteração
 
-Etapa 6, T37–T42. Cadastro e validação de mesas, contexto do tablet, pedidos em
-mesa e Comanda digital com histórico "Já pedi".
+Etapa 7, T43–T49. Painel de TV, resumo administrativo, sincronização entre áreas
+e medição da propagação.
 
 ## Referências de implementação
 

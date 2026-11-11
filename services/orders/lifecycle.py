@@ -13,6 +13,7 @@ from services.orders.views import order_view
 
 NEXT_STATE = {
     "pickup": {"received": "preparing", "preparing": "ready", "ready": "completed"},
+    "table": {"received": "preparing", "preparing": "ready", "ready": "completed"},
     "delivery": {"received": "preparing", "preparing": "ready", "ready": "dispatched", "dispatched": "completed"},
 }
 

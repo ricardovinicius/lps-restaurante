@@ -16,7 +16,7 @@ from services.orders.schemas import (
     Checkout, CustomerContextInput, CustomerRecovery, Fulfillment, OperationPage, OperationSummary,
     OperationView, OrderPage, OrderView, PendingOperation,
 )
-from services.orders.views import order_page, order_view, page_rows
+from services.orders.views import for_tablet, order_page, order_view, page_rows
 
 router = APIRouter(prefix="/v1")
 
@@ -64,8 +64,9 @@ def operations(request: Request, response: Response,
     response.headers["Cache-Control"] = "no-store"
     return OperationPage(items=[OperationSummary(
         operation_id=row.id, idempotency_key=row.idempotency_key, state=row.state,
-        customer_name=row.payload["customer_name"], origin=row.payload["origin"],
-        fulfillment=row.payload["fulfillment"], attempts=row.attempts,
+        customer_name=row.payload.get("customer_name"), origin=row.payload["origin"],
+        fulfillment=row.payload["fulfillment"], table_number=(row.table or {}).get("table_number"),
+        attempts=row.attempts,
         created_at=row.created_at, updated_at=row.updated_at, error=row.error,
     ) for row in rows], next_cursor=next_cursor)
 
@@ -73,9 +74,12 @@ def operations(request: Request, response: Response,
 @router.post("/orders", status_code=201, response_model=OrderView | PendingOperation)
 def create_order(payload: Checkout, request: Request, response: Response, idempotency_key: IdempotencyKey,
     db=Depends(database_session)):
-    principal, context_id = creation_principal(request, db, payload.origin)
+    creator = creation_principal(request, db, payload.origin)
     body = payload.model_dump(mode="json", exclude_none=True)
-    operation_id = register_operation(db, principal, context_id, idempotency_key, body)
+    if creator.table_id is not None:
+        body["table_id"] = str(creator.table_id)
+
+    operation_id = register_operation(db, creator, idempotency_key, body)
     process_operation(request.app.state.engine, operation_id, request.state.request_id)
     db.expire_all()
     operation = db.get(CheckoutOperation, operation_id)
@@ -96,9 +100,14 @@ def get_operation(operation_id: UUID, request: Request, response: Response, db=D
     operation = db.get(CheckoutOperation, operation_id)
     if operation is None:
         raise ApiError(404, "not_found", "Operação não encontrada.")
-    allow_read(request, db, operation.customer_context_id, staff_scope="staff")
+    reader = allow_read(
+        request, db, operation.customer_context_id, table_context_id=operation.table_context_id, staff_scope="staff",
+    )
     response.headers["Cache-Control"] = "no-store"
-    return detailed_operation(db, operation, request)
+    view = detailed_operation(db, operation, request)
+    if reader == "table" and view.order is not None:
+        for_tablet(view.order)
+    return view
 
 
 @router.post("/operations/{operation_id}/resume", response_model=OperationView)
@@ -135,9 +144,10 @@ def get_order(order_id: UUID, request: Request, response: Response, db=Depends(d
     order = db.get(Order, order_id)
     if order is None:
         raise ApiError(404, "not_found", "Pedido não encontrado.")
-    allow_read(request, db, order.customer_context_id)
+    reader = allow_read(request, db, order.customer_context_id, table_id=order.table_id)
     response.headers["Cache-Control"] = "no-store"
-    return detailed_order(db, order, request)
+    view = detailed_order(db, order, request)
+    return for_tablet(view) if reader == "table" else view
 
 
 @router.get("/queue", response_model=OrderPage, dependencies=[Depends(operator)])

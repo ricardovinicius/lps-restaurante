@@ -7,7 +7,7 @@ from services.orders.errors import is_business_rejection
 
 # Only these services decide whether a customer request is acceptable.
 # Any other failure, including Entregas conflicts, is internal and retried.
-BUSINESS_DECIDERS = {"configuration", "catalog"}
+BUSINESS_DECIDERS = {"configuration", "catalog", "tables"}
 
 
 def dependency_error(service, response):
@@ -68,6 +68,12 @@ def obtain_admission(operation, request_id):
 def obtain_quote(operation, request_id):
     return call_service("catalog", f"/internal/v1/quotes/{operation.id}", {
         "expected_revision": operation.payload["catalog_revision"], "items": operation.payload["items"],
+    }, request_id)
+
+
+def validate_table(operation, request_id):
+    return call_service("tables", f"/internal/v1/validations/{operation.id}", {
+        "table_id": operation.payload["table_id"],
     }, request_id)
 
 

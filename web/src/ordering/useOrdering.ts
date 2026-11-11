@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { Fulfillment, Order, Product } from "../api";
 import { useOrderCheckout } from "./checkout";
-import { useOrderDraft, type CartItem } from "./draft";
+import { useOrderDraft, type CartItem, type TableChoice } from "./draft";
 import { availableFulfillments, feeFor, selectedFulfillment } from "./fulfillment";
 import { useOrderMenu } from "./menu";
 
@@ -9,19 +9,21 @@ export function useOrdering(
   origin: Order["origin"],
   csrf: string | undefined,
   onCreated: (order: Order) => void,
-  staffUsername?: string,
+  scope?: string,
 ) {
-  const store = useOrderDraft(origin, staffUsername);
+  // The scope is the operator for the Balcão and the table context for the Comanda.
+  const store = useOrderDraft(origin, scope);
   const [feedback, setFeedback] = useState("");
   const menu = useOrderMenu(store, setFeedback);
-  const checkout = useOrderCheckout({ store, menu, origin, csrf, onCreated, setFeedback });
+  const tableContextId = origin === "tablet" ? scope : undefined;
+  const checkout = useOrderCheckout({ store, menu, origin, csrf, tableContextId, onCreated, setFeedback });
   const { draft, currentDraft, saveDraft, mounted, storageError } = store;
   const { configuration, loadCatalog } = menu;
   const { busy, setBusy } = checkout;
 
-  const fulfillments = availableFulfillments(configuration);
+  const fulfillments = availableFulfillments(configuration, origin);
   // A pending send keeps what was submitted, even if the configuration has changed since.
-  const fulfillment = draft.pending?.payload.fulfillment ?? selectedFulfillment(draft, configuration);
+  const fulfillment = draft.pending?.payload.fulfillment ?? selectedFulfillment(draft, configuration, origin);
   const address = draft.pending?.payload.address ?? draft.address;
   const subtotal = draft.items.reduce((sum, item) => sum + item.quantity * item.unit_price_cents, 0);
   const fee = feeFor(fulfillment);
@@ -82,6 +84,10 @@ export function useOrdering(
     if (canEdit()) saveDraft({ ...currentDraft.current, address });
   }
 
+  function changeTable(table: TableChoice | undefined) {
+    if (canEdit()) saveDraft({ ...currentDraft.current, table });
+  }
+
   function changeFulfillment(value: Fulfillment) {
     if (canEdit() && fulfillments.includes(value)) saveDraft({ ...currentDraft.current, fulfillment: value });
   }
@@ -91,7 +97,7 @@ export function useOrdering(
     configuration, configurationSync: menu.configurationSync,
     catalog: menu.catalog, catalogError: menu.catalogError, loadCatalog,
     fulfillments, fulfillment, address, subtotal, fee, total,
-    changeQuantity, changeName, changeAddress, changeFulfillment, review,
+    changeQuantity, changeName, changeAddress, changeFulfillment, changeTable, review,
     submit: checkout.submit,
     recoverIdentification: checkout.recoverIdentification,
     restartAfterVerification: checkout.restartAfterVerification,
