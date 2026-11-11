@@ -1,9 +1,8 @@
 # Contratos HTTP v1
 
-As rotas públicas de Configuração, Acesso e Catálogo e a verificação interna de
-sessão foram implementadas na etapa 3. Admissões, cotações e os contratos de Pedidos,
-Mesas e Entregas descrevem as etapas seguintes. Cada serviço gera OpenAPI a partir
-de seus modelos e rotas em `/openapi.json`.
+As rotas de Configuração, Acesso, Catálogo e retirada estão implementadas, incluindo
+admissões e cotações internas. Mesas, Entregas, TV e resumo descrevem as etapas
+seguintes. Cada serviço gera OpenAPI a partir de seus modelos e rotas em `/openapi.json`.
 Os contratos de saúde implementados estão em `docs/contracts/health-*.json`.
 
 ## Convenções
@@ -68,10 +67,13 @@ Cotação aceita é persistida por operation_id; replay com payload distinto ret
 
 | Método / caminho | Acesso | Entrada | Resultado |
 | --- | --- | --- | --- |
-| POST /v1/customer-contexts | Público | — | 201 cookie opaco de contexto anônimo |
+| POST /v1/customer-contexts | Público | recovery_token opcional; new_context=false | 201 cookie opaco; contexto existente preservado por padrão |
+| POST /v1/customer-contexts/recover | Credencial de recuperação | context_id, recovery_token | Recupera o contexto e seu cookie; 401 sem prova válida |
 | POST /v1/orders | Cliente, operador ou tablet | Payload abaixo + Idempotency-Key | 201 pedido confirmado ou 202 operação pendente |
-| GET /v1/operations/{id} | Dono ou operador | — | state; order se succeeded; erro se rejected |
-| GET /v1/my-orders | Contexto cliente | cursor, limit | Pedidos apenas do contexto |
+| GET /v1/operations | Admin ou operador | state?, reference?, cursor, limit | Tentativas paginadas; reference busca operation_id ou Idempotency-Key em qualquer estado |
+| GET /v1/operations/{id} | Dono, admin ou operador | — | state; order se succeeded; erro se rejected |
+| POST /v1/operations/{id}/resume | Admin + CSRF | — | Retoma needs_attention, com auditoria; 409 nos demais estados |
+| GET /v1/my-orders | Contexto cliente | status=active|completed?, cursor, limit | Pedidos apenas do contexto |
 | GET /v1/orders/{id} | Dono, mesa autorizada ou operador | — | Pedido e estado |
 | GET /v1/queue | Operador | fulfillment?, cursor, limit | Pedidos confirmados não concluídos |
 | POST /v1/orders/{id}/transitions | Operador + CSRF | expected_version, target_state + Idempotency-Key | Pedido atualizado ou replay |
@@ -80,6 +82,10 @@ Cotação aceita é persistida por operation_id; replay com payload distinto ret
 | GET /v1/summary | Admin | — | active_orders, completed_order_value_cents |
 
 Payload de criação:
+
+Na etapa 4, somente `origin=client|counter` e `fulfillment=pickup` são aceitos.
+Entrega, mesa e tablet serão integrados nas próximas etapas. O exemplo completo
+abaixo descreve o contrato futuro de entrega; na retirada, omitir `address`.
 
 ```json
 {
@@ -95,6 +101,7 @@ Payload de criação:
 }
 ```
 
+Itens: de 1 a 50 produtos distintos, com quantidades inteiras de 1 a 99.
 Nome obrigatório para Cliente/Balcão (1–120 caracteres após trim), endereço
 obrigatório somente para entrega (1–500). Mesa exige table_id; tablet deriva esse
 ID da credencial e dispensa nome. Rejeitar combinações incompatíveis; validar origin
@@ -106,6 +113,18 @@ Resposta 202: `{operation_id, state: "pending", status_url}`. Não limpar carrin
 até `succeeded`; desabilitar edição durante a operação ou iniciar outra identidade
 somente após resolução explícita. Nova revisão de preço exige revisão do carrinho
 e uma nova chave, após a operação anterior ser rejeitada.
+
+O frontend envia `X-Customer-Context` no checkout do cliente. O valor deve
+corresponder ao contexto autenticado pelo cookie; não é uma credencial e não
+permite trocar o dono da operação. Essa verificação impede replay com outra
+identidade quando o cookie muda.
+
+`recovery_token` possui 64 caracteres hexadecimais aleatórios. O navegador o
+preserva antes do envio e o servidor guarda apenas seu hash. O UUID do contexto,
+do pedido ou a referência do envio, isoladamente, não autorizam recuperação.
+`new_context=true` inicia outro atendimento sem cancelar ou apagar tentativas
+anteriores. Para tentativas antigas sem credencial de recuperação, a interface
+exige confirmação explícita de que o resultado foi verificado com o atendimento.
 
 ## Mesas
 

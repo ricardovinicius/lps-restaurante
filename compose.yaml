@@ -25,6 +25,7 @@ services:
         SERVICE: configuration
     environment:
       MESA_CATALOG_ACCESS_KEY: ${MESA_CATALOG_ACCESS_KEY:?Set MESA_CATALOG_ACCESS_KEY}
+      MESA_ORDERS_ACCESS_KEY: ${MESA_ORDERS_ACCESS_KEY:?Set MESA_ORDERS_ACCESS_KEY}
       MESA_DEMO_ADMIN_PASSWORD: ${MESA_DEMO_ADMIN_PASSWORD:-}
       MESA_DEMO_OPERATOR_PASSWORD: ${MESA_DEMO_OPERATOR_PASSWORD:-}
       MESA_SECURE_COOKIES: ${MESA_SECURE_COOKIES:-0}
@@ -45,6 +46,7 @@ services:
         SERVICE: catalog
     environment:
       MESA_CATALOG_ACCESS_KEY: ${MESA_CATALOG_ACCESS_KEY:?Set MESA_CATALOG_ACCESS_KEY}
+      MESA_ORDERS_ACCESS_KEY: ${MESA_ORDERS_ACCESS_KEY:?Set MESA_ORDERS_ACCESS_KEY}
       MESA_CONFIGURATION_URL: http://configuration:8000
       MESA_DATABASE_URL: postgresql+psycopg://mesa_catalog:${CATALOG_DB_PASSWORD:?Set CATALOG_DB_PASSWORD}@postgres:5432/mesa_catalog
     depends_on:
@@ -62,6 +64,10 @@ services:
       args:
         SERVICE: orders
     environment:
+      MESA_ORDERS_ACCESS_KEY: ${MESA_ORDERS_ACCESS_KEY:?Set MESA_ORDERS_ACCESS_KEY}
+      MESA_CONFIGURATION_URL: http://configuration:8000
+      MESA_CATALOG_URL: http://catalog:8000
+      MESA_SECURE_COOKIES: ${MESA_SECURE_COOKIES:-0}
       MESA_DATABASE_URL: postgresql+psycopg://mesa_orders:${ORDERS_DB_PASSWORD:?Set ORDERS_DB_PASSWORD}@postgres:5432/mesa_orders
     depends_on:
       postgres:

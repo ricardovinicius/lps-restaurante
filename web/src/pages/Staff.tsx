@@ -100,6 +100,7 @@ export function AdminLayout() {
     <nav className="view-links" aria-label="Administração">
       <NavLink end to="/admin" className={({ isActive }) => isActive ? "primary" : "secondary"}>Configurações</NavLink>
       <NavLink to="/admin/catalogo" className={({ isActive }) => isActive ? "primary" : "secondary"}>Editar cardápio</NavLink>
+      <NavLink to="/admin/envios" className={({ isActive }) => isActive ? "primary" : "secondary"}>Envios</NavLink>
     </nav>
     <Outlet context={useStaff()} />
   </>;

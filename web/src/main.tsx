@@ -4,6 +4,9 @@ import { BrowserRouter, Link, NavLink, Outlet, Route, Routes } from "react-route
 import { api, type Configuration } from "./api";
 import { Load, PageHeading } from "./components";
 import { Catalog } from "./pages/Catalog";
+import { Counter } from "./pages/Counter";
+import { Pickup } from "./pages/Pickup";
+import { Operations } from "./pages/Operations";
 import { Settings } from "./pages/Settings";
 import { AdminLayout, LegacyEntry, Staff, useStaff } from "./pages/Staff";
 import "../../prototypes/mesa-facil/dist/style.css";
@@ -65,15 +68,16 @@ createRoot(document.getElementById("root")!).render(
     <Routes>
       <Route element={<Layout />}>
         <Route index element={<LegacyEntry />} />
-        <Route path="cliente" element={<Catalog />} />
+        <Route path="cliente" element={<Pickup />} />
         <Route path="admin" element={<Staff role="admin" />}>
           <Route element={<AdminLayout />}>
             <Route index element={<SettingsRoute />} />
             <Route path="catalogo" element={<CatalogRoute />} />
+            <Route path="envios" element={<Operations />} />
           </Route>
         </Route>
         <Route path="balcao" element={<Staff role="operator" />}>
-          <Route index element={<PageHeading title="Balcão"><p>A fila será conectada na etapa de retirada.</p></PageHeading>} />
+          <Route index element={<Counter />} />
         </Route>
         <Route path="comanda" element={<PendingArea feature="tablet" title="Comanda digital" />} />
         <Route path="tv" element={<PendingArea feature="tv" title="Painel de TV" />} />

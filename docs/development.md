@@ -4,7 +4,8 @@
 
 O ambiente inclui os cinco serviços FastAPI com bancos e migrações independentes.
 As APIs de Configuração, Acesso e Catálogo atendem o frontend React pelo gateway.
-As jornadas de pedidos, entrega, mesa e TV permanecem nas etapas seguintes.
+Retirada, fila do Balcão e acompanhamento usam Pedidos com persistência,
+idempotência e recuperação. Entrega, mesa, Comanda e TV permanecem nas próximas etapas.
 
 `/health/live` informa que o processo responde. `/health/ready` exige conexão ao
 banco/usuário do serviço e revisão Alembic atual; não significa que os fluxos de
@@ -23,7 +24,8 @@ docker compose up --build -d --wait
 ```
 
 Se o arquivo `.env` já existia, adicione as variáveis de acesso listadas em
-`.env.example`. Preserve as credenciais PostgreSQL usadas pelo volume existente.
+`.env.example`, incluindo `MESA_ORDERS_ACCESS_KEY`. Preserve as credenciais
+PostgreSQL usadas pelo volume existente.
 
 Na inicialização, cada serviço aplica suas próprias migrações antes de iniciar o
 Uvicorn. Um advisory lock transacional serializa tentativas simultâneas de migração.
@@ -46,8 +48,10 @@ Repetir os seeds preserva contas, configuração, preços e disponibilidade.
 Abra [Administração](http://localhost:8080/admin) e entre com a conta `admin`.
 Carregue um modelo, ajuste o rascunho e salve. O JSON de exportação reflete a
 configuração persistida. Use **Editar cardápio** para alterar um produto e confira
-o resultado no [Cardápio](http://localhost:8080/cliente). A conta `operator`
-acessa o [Balcão](http://localhost:8080/balcao), cuja fila faz parte da próxima etapa.
+o resultado no [Cardápio](http://localhost:8080/cliente). Com retirada habilitada,
+adicione produtos e confirme um pedido. A conta `operator` acessa o
+[Balcão](http://localhost:8080/balcao) para iniciar preparo, marcar pronto e concluir.
+O Cliente acompanha os estados sem recarga; o Balcão também permite criar retiradas.
 
 Endpoints de saúde disponíveis pelo gateway.
 
@@ -122,7 +126,9 @@ PYTHONPATH=packages/mesa_platform/src uv run --frozen uvicorn services.configura
 | MESA_DATABASE_CONNECT_TIMEOUT | Timeout de conexão em segundos, padrão 2 |
 | MESA_LOG_LEVEL | Nível de log Python, padrão INFO |
 | MESA_CATALOG_ACCESS_KEY | Credencial compartilhada entre Catálogo e Configuração para verificar sessões |
+| MESA_ORDERS_ACCESS_KEY | Credencial de Pedidos para sessões, admissões e cotações internas |
 | MESA_CONFIGURATION_URL | URL interna de Configuração, padrão `http://configuration:8000` |
+| MESA_CATALOG_URL | URL interna do Catálogo, padrão `http://catalog:8000` |
 | MESA_DEMO_ADMIN_PASSWORD | Senha inicial da conta demonstrativa `admin` |
 | MESA_DEMO_OPERATOR_PASSWORD | Senha inicial da conta demonstrativa `operator` |
 | MESA_SECURE_COOKIES | Use `1` ao servir a aplicação sobre HTTPS, padrão `0` para execução local |
@@ -159,6 +165,40 @@ cobrem sessão, expiração, autorização de administrador e operador, CSRF,
 dependências entre funcionalidades, catálogo público, concorrência de gravação
 e persistência de alterações e sessões após recriar serviços.
 
+## Verificação real da retirada
+
+```bash
+uv run --frozen pytest -q tests/integration
+```
+
+Administração e retirada compartilham um projeto Compose descartável. A suíte
+verifica as novas migrações contra os modelos reais, isolamento dos bancos,
+snapshots, valores altos, permissões, concorrência, replay de criação/transição,
+paginação e persistência após recriação. Interromper o Catálogo e remover apenas
+o recibo local de admissão simula falha entre o commit remoto e o progresso local;
+o pedido se recupera mesmo após reiniciar Pedidos e desabilitar novas retiradas.
+Também cobre o limite de tentativas e a retomada administrativa auditada.
+
+As jornadas Playwright estão em `web/e2e/`; comandos em
+[tests/e2e/README.md](../tests/e2e/README.md). O carrinho e a identidade do envio
+ficam no navegador. A confirmação e os dados dos pedidos pertencem ao servidor.
+O cookie perdido é recuperado pela credencial independente criada antes do envio.
+Se essa credencial também não existir, a interface mostra a referência para
+verificação no atendimento e permite iniciar outro atendimento após confirmação
+explícita do usuário. A tentativa anterior permanece registrada; isso não cancela
+um pedido nem confirma o reenvio automaticamente.
+
+Na Administração, abra **Envios** para listar operações que precisam de atenção,
+consultar o resultado e retomar após resolver a falha. No Balcão, **Verificação de
+envios** permite a consulta pela referência do cliente; apenas o administrador
+pode retomar. Erros de chave interna são recuperáveis. A migração `orders_0003`
+também torna visíveis as rejeições antigas causadas por esse erro.
+
+O acompanhamento consulta uma página de pedidos ativos a cada três segundos.
+Concluídos usam histórico paginado sob demanda. Os itens de uma página são lidos
+em lote e o contexto não é criado novamente em cada ciclo. A meta de p95 da T54
+continua dependendo de medição específica de carga.
+
 ## Verificação real da infraestrutura
 
 ```bash
@@ -188,7 +228,7 @@ nessa suíte; os testes ASGI unitários continuam usando um substituto de conex�
 
 ## Evidências e limites
 
-- 49 testes Python unitários, incluindo todas as 32 combinações de features.
+- 108 testes Python unitários, incluindo features, entradas e classificação de erros internos.
 - Suíte de infraestrutura executada com PostgreSQL 17, cinco processos FastAPI e Nginx.
 - Docker inicialmente indisponível na iteração 1, acessível e validado na iteração 2.
 - O TestClient precisa de execução fora da restrição de sockets do sandbox.
@@ -198,13 +238,17 @@ nessa suíte; os testes ASGI unitários continuam usando um substituto de conex�
 - Uma verificação no Chromium com Playwright cobriu login, modelo em rascunho,
   configuração inválida, descarte, exportação da versão salva, persistência após
   recarga, edição do catálogo, cardápio em viewport de 390 px e saída da sessão.
-- Checkout, recuperação de operações e sincronização entre áreas pertencem às
-  próximas etapas.
+- Treze testes de integração de Administração e retirada passaram com PostgreSQL 17.
+- Sete jornadas Playwright de retirada e recuperação passaram no Chromium: acompanhamento em
+  sessões distintas, carrinho após recarga, resposta perdida, reenvio idempotente,
+  revisão de preços, respostas de telas desmontadas, perda de cookie, atendimento
+  de tentativas antigas, histórico sob demanda e retomada pela interface.
+- Entrega, Mesas, Comanda, TV e suas jornadas permanecem nas próximas etapas.
 
 ## Próxima iteração
 
-Etapa 4, T21–T29. Criação de pedidos para retirada, carrinho e checkout, fila no
-Balcão, transições e acompanhamento pelo cliente.
+Etapa 5, T30–T36. Persistência de endereço e taxa, coordenação com Entregas,
+despacho e recuperação das operações de entrega.
 
 ## Referências de implementação
 

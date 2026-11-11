@@ -1,6 +1,7 @@
 # Concorrência e recuperação
 
-Decisão de projeto para implementação nas etapas 3–6; ainda não executada.
+Admissão, cotação, idempotência, recuperação e transições estão implementadas para
+retirada. Os passos específicos de Mesas e Entregas pertencem às etapas seguintes.
 
 ## Ponto de admissão
 
@@ -55,6 +56,17 @@ needs_attention. Expor estado ao dono sem dados internos; fornecer comando
 administrativo autenticado de retomada com auditoria. Não descartar operações nem
 mostrar sucesso para encerrar o retry. Reinício retoma a partir dos dados persistidos.
 
+Falhas de autenticação entre serviços são erros internos recuperáveis, expostos
+como `dependency_authentication_failed`, e não rejeições do cliente. Somente códigos
+conhecidos de negócio encerram a operação como rejected. A migração `orders_0003`
+reclassifica rejeições antigas `403 forbidden` como needs_attention, preservando
+rejeições legítimas e exigindo retomada administrativa após corrigir a configuração.
+
+Administração → Envios e Balcão → Verificação de envios listam e consultam as
+tentativas. O cliente informa a referência do envio; apenas o administrador pode
+retomar. O atendimento consulta o resultado antes de orientar um novo envio quando
+o navegador perdeu a identificação e sua credencial de recuperação.
+
 ## Transições e despacho
 
 Transição informa target_state, expected_version e chave de idempotência. Bloquear
@@ -68,7 +80,7 @@ Pedidos. Durante a recuperação, impedir outras transições no mesmo pedido. O
 estado público permanece ready até a confirmação; Entregas guarda metadados e não
 expõe estado público independente. Aplicar o mesmo lease/retry da criação.
 
-## Casos obrigatórios de teste futuro
+## Casos de validação
 
 Timeout antes/depois do commit remoto; reinício entre recibo remoto e commit local;
 dois envios concorrentes; mesma chave com payload distinto; dois operadores avançando

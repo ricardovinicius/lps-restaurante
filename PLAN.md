@@ -50,6 +50,35 @@ Passaram 49 testes unitários, três testes de integração com PostgreSQL 17,
 a verificação de infraestrutura e uma jornada da Administração no Chromium.
 A próxima etapa é o fluxo de retirada completo, T21–T29.
 
+### Iteração 4 — Retirada completa
+
+T21–T29 concluídas. Cliente e Balcão criam retiradas persistidas, com valores
+calculados no servidor, snapshots, contexto privado de acompanhamento e fila com
+transições versionadas. Admissões e cotações são idempotentes; operações pendentes
+possuem recuperação após reinício e retomada administrativa auditada. O carrinho
+preserva a identidade do envio em falhas e solicita revisão explícita de preços.
+
+Passaram 99 testes unitários, nove testes de integração com PostgreSQL 17 e três
+jornadas Playwright no Chromium. A integração verificou migrações/modelos,
+concorrência, isolamento, preços históricos, recuperação após commit remoto e
+reinício, conclusão após desabilitar retirada e retomada de operações esgotadas.
+As jornadas cobriram Cliente/Balcão em sessões independentes, carrinho após recarga,
+resposta perdida sem duplicidade, revisão de preço e respostas de telas desmontadas.
+O build React passou. Próxima etapa: Entregas, T30–T36.
+
+### Revisão da etapa 4 — Recuperação e consultas
+
+Falhas internas de autenticação permanecem recuperáveis. A Administração e o
+Balcão localizam tentativas pela referência, com retomada restrita ao administrador.
+A perda de cookie usa uma credencial de recuperação; tentativas antigas sem essa
+credencial exigem verificação com o atendimento antes de iniciar outra identificação.
+Rejeições antigas causadas por chave divergente são reclassificadas por migração.
+
+O acompanhamento atualiza páginas de pedidos ativos, consulta concluídos sob demanda
+e carrega itens em lote. Passaram 108 testes unitários, 13 de integração e sete
+jornadas Playwright, incluindo migração com dados antigos e retomada pela interface.
+O build passou; a medição de p95 permanece na T54.
+
 ## Etapa 1 — Contratos e estrutura
 
 Dependências: nenhuma.
@@ -136,23 +165,23 @@ permissão e configurações inválidas. Carregar um modelo não salva automatic
 
 Dependências: etapa 3.
 
-- [ ] T21 — Implementar criação de pedidos consultando configuração e catálogo,
+- [x] T21 — Implementar criação de pedidos consultando configuração e catálogo,
   validando disponibilidade, quantidades, identificação e revisão recebida.
-- [ ] T22 — Calcular valores no servidor e persistir snapshots dos itens;
+- [x] T22 — Calcular valores no servidor e persistir snapshots dos itens;
   rejeitar mudanças de preço não aceitas para revisão pelo cliente.
-- [ ] T23 — Implementar chave de idempotência com garantia no banco; repetição
+- [x] T23 — Implementar chave de idempotência com garantia no banco; repetição
   da mesma operação retorna o mesmo pedido e payload incompatível é rejeitado.
-- [ ] T24 — Implementar transições explícitas Recebido → Em preparo → Pronto →
+- [x] T24 — Implementar transições explícitas Recebido → Em preparo → Pronto →
   Concluído, com histórico e controle de concorrência. Repetir uma ação não pode
   avançar duas etapas.
-- [ ] T25 — Implementar consulta pública restrita aos pedidos do cliente por
+- [x] T25 — Implementar consulta pública restrita aos pedidos do cliente por
   credencial não previsível, independente do número de atendimento.
-- [ ] T26 — Conectar cardápio, busca, categorias, carrinho, checkout e
+- [x] T26 — Conectar cardápio, busca, categorias, carrinho, checkout e
   acompanhamento às APIs.
-- [ ] T27 — Implementar Balcão com fila, criação operacional e ações válidas.
-- [ ] T28 — Preservar carrinho em falhas, reutilizar a chave em tentativas da
+- [x] T27 — Implementar Balcão com fila, criação operacional e ações válidas.
+- [x] T28 — Preservar carrinho em falhas, reutilizar a chave em tentativas da
   mesma operação e limpar o carrinho somente após confirmação.
-- [ ] T29 — Validar retirada ponta a ponta, snapshots, envio repetido,
+- [x] T29 — Validar retirada ponta a ponta, snapshots, envio repetido,
   concorrência e recuperação após reinício.
 
 Critério de conclusão: cliente cria uma retirada real, Balcão conclui o pedido e

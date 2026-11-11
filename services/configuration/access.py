@@ -10,6 +10,7 @@ from sqlalchemy import delete, func, select
 
 from mesa_platform.access import CSRF_HEADER, STAFF_COOKIE
 from mesa_platform.http import ApiError, Input, database_session
+from mesa_platform.service_access import require_service_key
 from services.configuration.models import StaffSession, StaffUser
 from services.configuration.passwords import verify_password
 
@@ -26,7 +27,7 @@ class Login(Input):
 
 class Verification(Input):
     token: str = Field(max_length=128)
-    required_scope: Scope
+    required_scope: Literal["admin", "operator", "staff"]
     csrf_token: str | None = Field(default=None, max_length=128)
 
 
@@ -61,8 +62,8 @@ def lookup(db, token: str | None) -> CurrentSession:
     raise ApiError(401, "invalid_session", "Entre com sua conta para continuar.")
 
 
-def require_scope(session: CurrentSession, scope: Scope):
-    if session.role != scope:
+def require_scope(session: CurrentSession, scope: str):
+    if scope != "staff" and session.role != scope:
         raise ApiError(403, "forbidden", "Seu perfil não tem permissão para esta operação.")
 
 
@@ -136,10 +137,7 @@ def logout(request: Request, session: SessionContext, db=Depends(database_sessio
 
 @router.post("/internal/v1/sessions/verify", response_model=Principal)
 def verify(payload: Verification, request: Request, db=Depends(database_session)):
-    expected = os.environ.get("MESA_CATALOG_ACCESS_KEY")
-    supplied = request.headers.get("X-Mesa-Service-Key", "")
-    if not expected or not secrets.compare_digest(expected.encode(), supplied.encode()):
-        raise ApiError(403, "forbidden", "Serviço não autorizado.")
+    require_service_key(request, "MESA_CATALOG_ACCESS_KEY", "MESA_ORDERS_ACCESS_KEY")
 
     session = lookup(db, payload.token)
     require_scope(session, payload.required_scope)

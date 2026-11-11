@@ -6,7 +6,8 @@ Linha de Produtos de Software para restaurantes, em implementação iterativa.
 
 O gateway serve a interface React. A Administração usa as APIs de Configuração
 e Catálogo para persistir funcionalidades, preços e disponibilidade no PostgreSQL.
-O Cardápio público já consulta o catálogo persistido.
+O Cliente cria e acompanha retiradas persistidas; o Balcão registra pedidos e
+controla os estados Recebido, Em preparo, Pronto e Concluído.
 
 ```bash
 cp .env.example .env
@@ -19,16 +20,20 @@ docker compose exec tables python -m mesa_platform.seed tables
 Abra a [Administração](http://localhost:8080/admin) e entre com o usuário
 `admin` e a senha de `MESA_DEMO_ADMIN_PASSWORD` configurada no `.env`.
 O usuário `operator` acessa o [Balcão](http://localhost:8080/balcao) com a senha
-`MESA_DEMO_OPERATOR_PASSWORD`. A fila e o checkout fazem parte da etapa de retirada.
+`MESA_DEMO_OPERATOR_PASSWORD`. Abra o [Cliente](http://localhost:8080/cliente)
+em outra sessão para criar uma retirada e acompanhar o andamento.
 
 Consulte o [plano](PLAN.md) e o [guia de desenvolvimento](docs/development.md).
 
 ```bash
 uv sync --frozen
 uv run --frozen pytest -q
-uv run --frozen pytest -q tests/integration/test_administration.py
+uv run --frozen pytest -q tests/integration
 python3 scripts/verify_infrastructure.py
 ```
+
+A jornada de retirada no navegador está em `web/e2e/`. Consulte os comandos e
+os cuidados com dados de teste em [tests/e2e/README.md](tests/e2e/README.md).
 
 ## Executar o protótipo
 

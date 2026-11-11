@@ -1,7 +1,7 @@
 # Arquitetura do Mesa Fácil
 
-Status: decisões para implementação do P0. Os únicos endpoints executáveis nesta
-iteração são os de saúde; as operações de negócio estão especificadas em
+Status: Configuração, Acesso, Catálogo e o fluxo de retirada estão implementados.
+Entregas, Mesas, Comanda e TV permanecem nas próximas etapas dos
 [contratos](contracts/http.md). O protótipo permanece independente.
 
 ## Organização
@@ -71,14 +71,15 @@ estados operacionais e pedidos incompletos nunca aparecem na fila ou na TV.
 
 ## Acesso
 
-A implementação usará sessões opacas revogáveis para administrador e operador,
+A implementação usa sessões opacas revogáveis para administrador e operador,
 com hash do token persistido em Configuração. Senhas terão hash apropriado, nunca
 texto puro. Sessão interna de usuário via cookie HttpOnly/SameSite e proteção CSRF
 nas mutações; Secure obrigatório fora de desenvolvimento HTTP local. Duração
 inicial de 8 horas, sem renovação implícita ilimitada.
 
 Cliente recebe contexto anônimo de acesso antes do checkout e só consulta seus
-pedidos. A sessão permite recuperar o resultado de uma criação após timeout.
+pedidos. O cookie opaco é preservado por até um ano no navegador, com hash no banco
+e sem expiração do registro no P0. O contexto permite recuperar uma criação após timeout.
 O número sequencial e o UUID, isoladamente, nunca autorizam consulta.
 
 Tablet requer provisionamento pelo operador e credencial restrita à mesa.

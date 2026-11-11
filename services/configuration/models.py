@@ -1,8 +1,9 @@
 """Configuration data, owned exclusively by this service."""
 
 from datetime import datetime
+from uuid import UUID
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import JSON, Boolean, CheckConstraint, DateTime, ForeignKey, Integer, String, Uuid, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -45,3 +46,13 @@ class StaffSession(Base):
     username: Mapped[str] = mapped_column(ForeignKey("staff_users.username", ondelete="CASCADE"))
     csrf_token: Mapped[str] = mapped_column(String(64), nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+
+class Admission(Base):
+    __tablename__ = "admissions"
+    __table_args__ = (CheckConstraint("configuration_revision > 0", name="positive_admission_revision"),)
+
+    operation_id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    request_payload: Mapped[dict] = mapped_column(JSON, nullable=False)
+    configuration_revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())

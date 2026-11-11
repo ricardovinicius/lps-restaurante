@@ -53,6 +53,47 @@
   margin-top: 18px;
 }
 
+.order-section,
+.new-counter-order {
+  margin-top: 28px;
+}
+
+.new-counter-order summary {
+  cursor: pointer;
+  font-weight: 700;
+  margin-bottom: 20px;
+}
+
+.order-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.order-items li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.sync-status {
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 18px;
+}
+
+.pickup-layout .quantity button,
+.pickup-layout .add {
+  min-width: 32px;
+  min-height: 32px;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 @media (max-width: 900px) {
   #role-nav {
     margin-top: 8px;
