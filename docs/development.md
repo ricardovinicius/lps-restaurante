@@ -4,8 +4,9 @@
 
 O ambiente inclui os cinco serviços FastAPI com bancos e migrações independentes.
 As APIs de Configuração, Acesso e Catálogo atendem o frontend React pelo gateway.
-Retirada, fila do Balcão e acompanhamento usam Pedidos com persistência,
-idempotência e recuperação. Entrega, mesa, Comanda e TV permanecem nas próximas etapas.
+Retirada, entrega, fila do Balcão e acompanhamento usam Pedidos com persistência,
+idempotência e recuperação; Entregas guarda endereço, taxa e despacho. Mesa, Comanda
+e TV permanecem nas próximas etapas.
 
 `/health/live` informa que o processo responde. `/health/ready` exige conexão ao
 banco/usuário do serviço e revisão Alembic atual; não significa que os fluxos de
@@ -48,10 +49,12 @@ Repetir os seeds preserva contas, configuração, preços e disponibilidade.
 Abra [Administração](http://localhost:8080/admin) e entre com a conta `admin`.
 Carregue um modelo, ajuste o rascunho e salve. O JSON de exportação reflete a
 configuração persistida. Use **Editar cardápio** para alterar um produto e confira
-o resultado no [Cardápio](http://localhost:8080/cliente). Com retirada habilitada,
-adicione produtos e confirme um pedido. A conta `operator` acessa o
-[Balcão](http://localhost:8080/balcao) para iniciar preparo, marcar pronto e concluir.
-O Cliente acompanha os estados sem recarga; o Balcão também permite criar retiradas.
+o resultado no [Cardápio](http://localhost:8080/cliente). Com retirada ou entrega
+habilitada, adicione produtos e confirme um pedido; na entrega, informe o endereço
+e confira a taxa de R$ 5,00. A conta `operator` acessa o
+[Balcão](http://localhost:8080/balcao) para iniciar preparo, marcar pronto, registrar
+a saída para entrega e concluir. O Cliente acompanha os estados sem recarga; o Balcão
+também cria pedidos nas modalidades habilitadas.
 
 Endpoints de saúde disponíveis pelo gateway.
 
@@ -126,9 +129,10 @@ PYTHONPATH=packages/mesa_platform/src uv run --frozen uvicorn services.configura
 | MESA_DATABASE_CONNECT_TIMEOUT | Timeout de conexão em segundos, padrão 2 |
 | MESA_LOG_LEVEL | Nível de log Python, padrão INFO |
 | MESA_CATALOG_ACCESS_KEY | Credencial compartilhada entre Catálogo e Configuração para verificar sessões |
-| MESA_ORDERS_ACCESS_KEY | Credencial de Pedidos para sessões, admissões e cotações internas |
+| MESA_ORDERS_ACCESS_KEY | Credencial de Pedidos para sessões, admissões, cotações e entregas internas |
 | MESA_CONFIGURATION_URL | URL interna de Configuração, padrão `http://configuration:8000` |
 | MESA_CATALOG_URL | URL interna do Catálogo, padrão `http://catalog:8000` |
+| MESA_DELIVERIES_URL | URL interna de Entregas, padrão `http://deliveries:8000` |
 | MESA_DEMO_ADMIN_PASSWORD | Senha inicial da conta demonstrativa `admin` |
 | MESA_DEMO_OPERATOR_PASSWORD | Senha inicial da conta demonstrativa `operator` |
 | MESA_SECURE_COOKIES | Use `1` ao servir a aplicação sobre HTTPS, padrão `0` para execução local |
@@ -199,6 +203,25 @@ Concluídos usam histórico paginado sob demanda. Os itens de uma página são l
 em lote e o contexto não é criado novamente em cada ciclo. A meta de p95 da T54
 continua dependendo de medição específica de carga.
 
+## Verificação real da entrega
+
+`tests/integration/test_delivery.py` roda na mesma suíte e no mesmo projeto Compose
+descartável. Cobre taxa e total calculados no servidor, endereço guardado apenas em
+Entregas, isolamento entre clientes, rotas internas fora do gateway, entrega criada
+pelo Balcão, endereço ausente sem dados parciais, replay da criação e do despacho,
+conclusão após desabilitar entrega e a retomada administrativa auditada.
+
+As falhas entre serviços são reais: Entregas é parado durante a criação e pausado
+durante o despacho, o que produz timeout. Os testes executam a chamada remota sem
+entregar a resposta a Pedidos, reiniciam Pedidos e verificam que o worker conclui
+uma única vez. Com Entregas pausado, a fila e o acompanhamento continuam com o
+endereço marcado como indisponível.
+
+Para demonstrar no navegador, habilite Entrega na Administração. Para ver a
+recuperação, pare o serviço com `docker compose stop deliveries`, registre
+"Saiu para entrega" e observe o aviso de confirmação pendente; após
+`docker compose start deliveries`, o pedido avança sozinho em alguns segundos.
+
 ## Verificação real da infraestrutura
 
 ```bash
@@ -228,7 +251,7 @@ nessa suíte; os testes ASGI unitários continuam usando um substituto de conex�
 
 ## Evidências e limites
 
-- 108 testes Python unitários, incluindo features, entradas e classificação de erros internos.
+- 135 testes Python unitários, incluindo features, entradas, endereço, despacho e classificação de erros internos.
 - Suíte de infraestrutura executada com PostgreSQL 17, cinco processos FastAPI e Nginx.
 - Docker inicialmente indisponível na iteração 1, acessível e validado na iteração 2.
 - O TestClient precisa de execução fora da restrição de sockets do sandbox.
@@ -243,12 +266,14 @@ nessa suíte; os testes ASGI unitários continuam usando um substituto de conex�
   sessões distintas, carrinho após recarga, resposta perdida, reenvio idempotente,
   revisão de preços, respostas de telas desmontadas, perda de cookie, atendimento
   de tentativas antigas, histórico sob demanda e retomada pela interface.
-- Entrega, Mesas, Comanda, TV e suas jornadas permanecem nas próximas etapas.
+- Iteração 5: 135 testes unitários, 20 de integração (sete de entrega) com
+  PostgreSQL 17 e dez jornadas Playwright no Chromium, três delas de entrega.
+- Mesas, Comanda, TV e suas jornadas permanecem nas próximas etapas.
 
 ## Próxima iteração
 
-Etapa 5, T30–T36. Persistência de endereço e taxa, coordenação com Entregas,
-despacho e recuperação das operações de entrega.
+Etapa 6, T37–T42. Cadastro e validação de mesas, contexto do tablet, pedidos em
+mesa e Comanda digital com histórico "Já pedi".
 
 ## Referências de implementação
 

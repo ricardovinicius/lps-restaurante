@@ -72,11 +72,12 @@ def test_quote_rejects_invalid_revision_and_unknown_fields(field, value):
 
 
 @pytest.mark.parametrize("origin", ["client", "counter"])
-def test_admission_accepts_pickup_origins(origin):
-    admission = AdmissionInput.model_validate({**ADMISSION, "origin": origin})
+@pytest.mark.parametrize("fulfillment", ["pickup", "delivery"])
+def test_admission_accepts_pickup_and_delivery_origins(origin, fulfillment):
+    admission = AdmissionInput.model_validate({**ADMISSION, "origin": origin, "fulfillment": fulfillment})
 
     assert admission.origin == origin
-    assert admission.fulfillment == "pickup"
+    assert admission.fulfillment == fulfillment
 
 
 @pytest.mark.parametrize("field,value", [
@@ -84,7 +85,7 @@ def test_admission_accepts_pickup_origins(origin):
     ("revision", 0), ("revision", 2147483648), ("revision", True),
     ("revision", "1"), ("revision", 1.0),
     ("origin", "tablet"), ("origin", "admin"), ("origin", True),
-    ("fulfillment", "delivery"), ("fulfillment", "tables"), ("fulfillment", False),
+    ("fulfillment", "table"), ("fulfillment", "tables"), ("fulfillment", False),
     ("configuration_revision", 1),
 ])
 def test_admission_rejects_invalid_and_ambiguous_fields(field, value):

@@ -1,7 +1,8 @@
 # Concorrência e recuperação
 
 Admissão, cotação, idempotência, recuperação e transições estão implementadas para
-retirada. Os passos específicos de Mesas e Entregas pertencem às etapas seguintes.
+retirada e entrega, incluindo o endereço e o despacho em Entregas. Os passos
+específicos de Mesas pertencem à etapa 6.
 
 ## Ponto de admissão
 
@@ -38,7 +39,10 @@ chaves enquanto pedidos ou recuperação dependam delas.
    operação succeeded. Só agora emitir confirmação e incluir na fila.
 
 Endereço em recuperação deve ser persistido com acesso restrito, nunca em logs,
-e removido da operação quando o recibo remoto estiver confirmado. O endereço
+e removido da operação quando o recibo remoto estiver confirmado. A implementação
+também o remove quando a operação é rejeitada; em `needs_attention` ele permanece
+até a retomada, pois ainda é necessário para concluir o PUT. O recibo guarda só a
+taxa, validada contra os 500 centavos fixos antes de compor o total. O endereço
 canônico pertence a Entregas. Falha após o PUT é recuperada repetindo o mesmo PUT;
 não exige rollback distribuído. A recuperação segue adiante com o snapshot aceito.
 Rejeições definitivas antes da entrega deixam apenas operação rejeitada e eventuais
@@ -69,16 +73,29 @@ o navegador perdeu a identificação e sua credencial de recuperação.
 
 ## Transições e despacho
 
-Transição informa target_state, expected_version e chave de idempotência. Bloquear
+Transição informa target_state, expected_version e chave de idempotência. Cada
+chave do operador é reservada uma única vez em `action_keys`, na mesma transação
+da transição ou do despacho; uma ação concorrente com a mesma chave em outro pedido
+recebe 409, sem deixar despacho confirmado em Entregas e pendente em Pedidos. Bloquear
 ou atualizar condicionalmente a linha do pedido, validar aresta da máquina de
 estados e incrementar version. Replay de uma transição já concluída devolve seu
 resultado; uma segunda ação concorrente baseada em versão antiga recebe 409.
 
-Despacho usa uma operação durável: persistir intenção e transition_id, registrar
-no serviço Entregas por PUT idempotente e só então tornar state=dispatched em
-Pedidos. Durante a recuperação, impedir outras transições no mesmo pedido. O
-estado público permanece ready até a confirmação; Entregas guarda metadados e não
-expõe estado público independente. Aplicar o mesmo lease/retry da criação.
+Despacho usa uma operação durável (`dispatch_operations`): persistir intenção,
+`transition_id` e `dispatched_at` sob o bloqueio do pedido, registrar no serviço
+Entregas por PUT idempotente e só então tornar state=dispatched em Pedidos, na mesma
+transação que grava a transição. O id da operação é o `transition_id`, então toda
+repetição após timeout ou reinício é replay em Entregas. Durante a recuperação,
+outras transições do pedido retornam 409. O estado público permanece ready até a
+confirmação; Entregas guarda metadados e não expõe estado público independente.
+O worker aplica o mesmo lease/retry da criação aos despachos. Após dez tentativas,
+o despacho fica needs_attention e aparece em Administração → Envios e no Balcão
+como **Saídas para entrega**; somente o administrador retoma, com auditoria em
+`dispatch_resumes`. Falhas de Entregas nunca rejeitam um despacho.
+
+Leituras de pedidos de entrega consultam Entregas em lote. Se Entregas estiver
+indisponível, a fila e o acompanhamento continuam com os dados de Pedidos e marcam
+os dados de entrega como indisponíveis; o Balcão não registra a saída nesse estado.
 
 ## Casos de validação
 

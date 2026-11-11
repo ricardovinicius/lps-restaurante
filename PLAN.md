@@ -79,6 +79,39 @@ e carrega itens em lote. Passaram 108 testes unitários, 13 de integração e se
 jornadas Playwright, incluindo migração com dados antigos e retomada pela interface.
 O build passou; a medição de p95 permanece na T54.
 
+### Iteração 5 — Entregas
+
+T30–T36 concluídas. Entregas guarda endereço, taxa fixa de 500 centavos e despacho
+por rotas internas idempotentes. A criação de entregas em Pedidos ganhou o passo de
+endereço: o pedido só entra na fila depois do recibo de Entregas, e o endereço sai
+da operação local assim que o recibo é gravado ou a operação é rejeitada.
+
+"Saiu para entrega" é uma operação durável com lease, backoff e retomada auditada,
+como a criação. O pedido permanece Pronto até Entregas confirmar, e outras
+transições ficam bloqueadas nesse intervalo. Leituras de fila e acompanhamento
+degradam quando Entregas não responde: os pedidos continuam visíveis, o endereço
+aparece como indisponível e o Balcão não registra a saída. Cliente e Balcão
+escolhem a modalidade; o Balcão também cria entregas. Desabilitar entrega bloqueia
+novos pedidos e preserva despacho e conclusão dos já aceitos.
+
+Decisões: despacho durável conforme `consistency.md`, leitura degradada em vez de
+503 e consulta em lote (`POST /internal/v1/deliveries/lookup`) no lugar do GET
+individual previsto. Conflitos de Entregas nunca rejeitam o pedido do cliente.
+
+A revisão da etapa corrigiu quatro falhas: cada chave do operador passou a ser
+reservada uma única vez para transições e despachos (`orders_0005`), evitando saída
+confirmada em Entregas e presa em Pedidos; o replay de um despacho concluído durante
+a consulta deixou de retornar 500; a mesma chave em ações simultâneas retorna 409;
+e o envio pendente mantém modalidade, endereço e taxa após mudar a configuração.
+A confirmação da retomada de um despacho é montada antes do commit, então não falha
+se o worker concluir a saída logo em seguida.
+
+Passaram 135 testes unitários, 20 de integração com PostgreSQL 17 e dez jornadas
+Playwright no Chromium. A integração usou falhas reais: Entregas parado na criação
+e pausado (timeout) no despacho, chamada remota concluída sem resposta para Pedidos
+e reinício de Pedidos antes da recuperação. O build React passou.
+Próxima etapa: Mesas e Comanda digital, T37–T42.
+
 ## Etapa 1 — Contratos e estrutura
 
 Dependências: nenhuma.
@@ -191,20 +224,20 @@ outra sessão acompanha o andamento com dados persistidos no servidor.
 
 Dependências: etapa 4.
 
-- [ ] T30 — Implementar persistência de endereço, taxa fixa de 500 centavos e
+- [x] T30 — Implementar persistência de endereço, taxa fixa de 500 centavos e
   informações de despacho no serviço de Entregas.
-- [ ] T31 — Implementar coordenação da criação entre Pedidos e Entregas com
+- [x] T31 — Implementar coordenação da criação entre Pedidos e Entregas com
   operações internas idempotentes e registro persistente do progresso.
-- [ ] T32 — Implementar retomada ou compensação de operações incompletas após
+- [x] T32 — Implementar retomada ou compensação de operações incompletas após
   timeout ou reinício, conforme o contrato da T05. Definir como a recuperação
   é acionada e como identificar operações que exigem intervenção.
-- [ ] T33 — Impedir confirmação e entrada na fila operacional enquanto os dados
+- [x] T33 — Impedir confirmação e entrada na fila operacional enquanto os dados
   necessários ao atendimento não estiverem persistidos e recuperáveis.
-- [ ] T34 — Implementar a etapa Saiu para entrega, mantendo Pedidos como fonte
+- [x] T34 — Implementar a etapa Saiu para entrega, mantendo Pedidos como fonte
   canônica do estado público e evitando estados contraditórios entre serviços.
-- [ ] T35 — Conectar modalidade entrega, endereço, taxa e acompanhamento no
+- [x] T35 — Conectar modalidade entrega, endereço, taxa e acompanhamento no
   frontend; preservar operação de pedidos antigos após desabilitar entrega.
-- [ ] T36 — Testar entrega completa, ausência de endereço, timeout, falhas antes
+- [x] T36 — Testar entrega completa, ausência de endereço, timeout, falhas antes
   e depois da persistência remota, repetição e recuperação após reinício.
 
 Critério de conclusão: entregas concluídas sem duplicidade ou confirmação parcial;

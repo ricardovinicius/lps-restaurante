@@ -105,12 +105,14 @@ export function isCheckoutRejection(code?: string) {
     "product_unavailable", "idempotency_conflict", "invalid_input"].includes(code));
 }
 
-export type OrderState = "received" | "preparing" | "ready" | "completed";
+export type OrderState = "received" | "preparing" | "ready" | "dispatched" | "completed";
+export type Fulfillment = "pickup" | "delivery";
+export type DeliveryDetails = { available: boolean; address: string | null; dispatched_at: string | null };
 export type Order = {
   id: string;
   number: number;
   origin: "client" | "counter";
-  fulfillment: "pickup";
+  fulfillment: Fulfillment;
   customer_name: string;
   state: OrderState;
   version: number;
@@ -121,14 +123,17 @@ export type Order = {
   total_cents: number;
   created_at: string;
   updated_at: string;
+  delivery?: DeliveryDetails | null;
+  dispatch_state?: "pending" | "needs_attention" | null;
 };
 
 export type CreateOrder = {
   configuration_revision: number;
   catalog_revision: number;
   origin: Order["origin"];
-  fulfillment: "pickup";
+  fulfillment: Fulfillment;
   customer_name: string;
+  address?: string;
   items: { product_id: string; quantity: number; expected_unit_price_cents: number }[];
 };
 
@@ -143,10 +148,17 @@ export type OrderOperation = {
 export type OrderPage = { items: Order[]; next_cursor: string | null };
 export type OperationSummary = {
   operation_id: string; idempotency_key: string; state: OrderOperation["state"];
-  customer_name: string; origin: Order["origin"]; attempts: number;
+  customer_name: string; origin: Order["origin"]; fulfillment: Fulfillment; attempts: number;
   created_at: string; updated_at: string; error: OrderOperation["error"] | null;
 };
 export type OperationPage = { items: OperationSummary[]; next_cursor: string | null };
+export type PendingDispatch = { operation_id: string; order_id: string; state: "pending" | "needs_attention"; status_url: string };
+export type DispatchSummary = {
+  operation_id: string; order_id: string; order_number: number; customer_name: string | null;
+  state: "pending" | "succeeded" | "needs_attention"; attempts: number;
+  created_at: string; updated_at: string; error: OrderOperation["error"] | null;
+};
+export type DispatchPage = { items: DispatchSummary[]; next_cursor: string | null };
 
 export const api = {
   session: () => request<Session>(sessions + "/current"),
@@ -192,10 +204,16 @@ export const api = {
   resumeOperation: (id: string, csrf: string) => request<OrderOperation>(orders + "operations/" + id + "/resume", "POST", undefined, csrf),
   myOrders: (cursor?: string, status?: "active" | "completed") => customerRequest(() =>
     request<OrderPage>(orders + "my-orders?" + new URLSearchParams({ ...(cursor ? { cursor } : {}), ...(status ? { status } : {}) }))),
-  queue: (cursor?: string) => request<OrderPage>(orders + "queue?" + new URLSearchParams({ fulfillment: "pickup", ...(cursor ? { cursor } : {}) })),
+  queue: (cursor?: string) => request<OrderPage>(orders + "queue?" + new URLSearchParams(cursor ? { cursor } : {})),
   order: (id: string) => request<Order>(orders + "orders/" + id),
   transition: (id: string, expected_version: number, target_state: OrderState, key: string, csrf: string) =>
-    request<Order>(orders + "orders/" + id + "/transitions", "POST", { expected_version, target_state }, csrf, { "Idempotency-Key": key }),
+    request<Order | PendingDispatch>(
+      orders + "orders/" + id + "/transitions", "POST", { expected_version, target_state }, csrf, { "Idempotency-Key": key },
+    ),
+  dispatches: (state: string, cursor?: string) =>
+    request<DispatchPage>(orders + "dispatches?" + new URLSearchParams({ state, ...(cursor ? { cursor } : {}) })),
+  resumeDispatch: (id: string, csrf: string) =>
+    request<PendingDispatch>(orders + "dispatches/" + id + "/resume", "POST", undefined, csrf),
 };
 
 export function errorMessage(error: unknown) {

@@ -4,7 +4,7 @@ export const configurationPath = "/api/configuration/v1/configuration";
 export const catalogPath = "/api/catalog/v1";
 export const ordersPath = "/api/orders/v1";
 
-export async function prepare(request: APIRequestContext) {
+export async function prepare(request: APIRequestContext, features: Record<string, boolean> = { pickup: true }) {
   const login = await request.post("/api/configuration/v1/sessions", { data: {
     username: "admin", password: process.env.MESA_DEMO_ADMIN_PASSWORD ?? "DemoAdminChangeMe",
   } });
@@ -13,7 +13,7 @@ export async function prepare(request: APIRequestContext) {
   const configuration = await (await request.get(configurationPath)).json();
   const headers = { "X-CSRF-Token": session.csrf_token };
   expect((await request.put(configurationPath, { headers, data: {
-    expected_revision: configuration.revision, features: { ...configuration.features, pickup: true },
+    expected_revision: configuration.revision, features: { ...configuration.features, ...features },
   } })).status()).toBe(200);
   const catalog = await (await request.get(catalogPath + "/admin/products")).json();
   const product = catalog.items[0];

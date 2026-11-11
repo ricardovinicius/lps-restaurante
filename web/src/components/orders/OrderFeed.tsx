@@ -1,7 +1,8 @@
 import { useCallback, useRef, useState } from "react";
-import { api, ApiError, errorMessage, type Order, type OrderState } from "../../api";
+import { api, ApiError, errorMessage, type Order } from "../../api";
 import { usePolling } from "../../hooks/usePolling";
-import { currency, stateNames } from "../../orders";
+import { nextAction } from "../../ordering/format";
+import { OrderCard } from "./OrderCard";
 import { Synchronization } from "./Synchronization";
 
 export function OrderFeed({ csrf, lastOrderId, refreshKey }: {
@@ -41,8 +42,9 @@ export function OrderFeed({ csrf, lastOrderId, refreshKey }: {
   const keys = useRef(new Map<string, string>());
   const orders = sync.value?.items ?? [];
 
-  async function transition(order: Order, target: OrderState) {
-    if (!csrf || busy) return;
+  async function transition(order: Order) {
+    const target = nextAction(order)?.state;
+    if (!csrf || busy || !target) return;
 
     const action = order.id + ":" + order.version + ":" + target;
     const key = keys.current.get(action) ?? crypto.randomUUID();
@@ -51,7 +53,10 @@ export function OrderFeed({ csrf, lastOrderId, refreshKey }: {
     setFeedback("");
 
     try {
-      await api.transition(order.id, order.version, target, key, csrf);
+      const result = await api.transition(order.id, order.version, target, key, csrf);
+      if ("operation_id" in result) {
+        setFeedback("Saída do pedido #" + order.number + " registrada. Aguardando confirmação do serviço de Entregas.");
+      }
       sync.refresh();
     } catch (error) {
       setFeedback(errorMessage(error) + " Atualize a fila antes de repetir a ação.");
@@ -61,15 +66,9 @@ export function OrderFeed({ csrf, lastOrderId, refreshKey }: {
     }
   }
 
-  const next: Partial<Record<OrderState, { state: OrderState; label: string }>> = {
-    received: { state: "preparing", label: "Iniciar preparo" },
-    preparing: { state: "ready", label: "Marcar como pronto" },
-    ready: { state: "completed", label: "Concluir retirada" },
-  };
-
   return <section className="order-section" aria-label={csrf ? "Fila de pedidos" : "Meus pedidos"}>
     <div className="section-heading">
-      <h2>{csrf ? "Fila de retirada" : "Meus pedidos"}</h2>
+      <h2>{csrf ? "Fila de pedidos" : "Meus pedidos"}</h2>
       <button className="secondary" onClick={sync.refresh}>Atualizar</button>
     </div>
     {!csrf && <div className="actions">
@@ -89,30 +88,12 @@ export function OrderFeed({ csrf, lastOrderId, refreshKey }: {
       {csrf ? "Nenhum pedido na fila." : "Você ainda não tem pedidos neste navegador."}
     </p>}
     <div className="tracking-list">
-      {orders.map((order) => <article className="info-card" key={order.id}>
-        {!csrf && !history && order.state === "completed" && <small>Último pedido concluído</small>}
-        <div className="section-heading"><h3>Pedido #{order.number}</h3><strong>{stateNames[order.state]}</strong></div>
-        <p>{order.customer_name} · Retirada · {order.origin === "counter" ? "Balcão" : "Cliente"}</p>
-        <p><time dateTime={order.created_at}>{new Date(order.created_at).toLocaleString("pt-BR")}</time></p>
-        <ol className="order-items">{order.items.map((item) => <li key={item.product_id}>
-          <span>{item.quantity} × {item.name}</span><strong>{currency.format(item.subtotal_cents / 100)}</strong>
-        </li>)}</ol>
-        <div className="totals"><div className="grand-total">
-          <span>Total</span><strong>{currency.format(order.total_cents / 100)}</strong>
-        </div></div>
-        <div className="progress-steps" aria-label="Etapas do pedido">
-          {Object.entries(stateNames).map(([state, label], index) => (
-            <span
-              key={state} className={index <= Object.keys(stateNames).indexOf(order.state) ? "reached" : ""}
-              aria-current={state === order.state ? "step" : undefined}
-            >{label}</span>
-          ))}
-        </div>
-        {csrf && next[order.state] && <button
-          className="primary" disabled={Boolean(busy) || Boolean(sync.error)}
-          onClick={() => void transition(order, next[order.state]!.state)}
-        >{busy === order.id ? "Atualizando…" : next[order.state]!.label}</button>}
-      </article>)}
+      {orders.map((order) => <OrderCard
+        key={order.id} order={order} staff={Boolean(csrf)}
+        highlightCompleted={!csrf && !history && order.state === "completed"}
+        busy={busy === order.id} actionsDisabled={Boolean(busy) || Boolean(sync.error)}
+        onAdvance={(value) => void transition(value)}
+      />)}
     </div>
     <div className="actions pagination">
       {cursor && <button className="secondary" onClick={() => setCursor(undefined)}>Primeira página de pedidos</button>}

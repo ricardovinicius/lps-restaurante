@@ -1,17 +1,21 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import type { Order } from "../api";
+import type { Fulfillment, Order } from "../api";
 import { PageHeading } from "../components";
 import { OrderFeed } from "../components/orders/OrderFeed";
 import { Synchronization } from "../components/orders/Synchronization";
-import { currency, usePickup } from "../orders";
+import { currency, fulfillmentNames } from "../ordering/format";
+import { useOrdering } from "../ordering/useOrdering";
 
-type PickupProps = {
+const fulfillmentChoices: Record<Fulfillment, string> = { pickup: "Retirada no balcão", delivery: "Entrega no endereço" };
+const confirmLabels: Record<Fulfillment, string> = { pickup: "Confirmar retirada", delivery: "Confirmar entrega" };
+
+type OrderingProps = {
   csrf?: string;
   staffUsername?: string;
   onCreated?: (order: Order) => void;
 };
 
-export function Pickup({ csrf, staffUsername, onCreated }: PickupProps) {
+export function Ordering({ csrf, staffUsername, onCreated }: OrderingProps) {
   const [lastOrder, setLastOrder] = useState<Order>();
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("");
@@ -20,44 +24,46 @@ export function Pickup({ csrf, staffUsername, onCreated }: PickupProps) {
     setLastOrder(order);
     onCreated?.(order);
   }, [onCreated]);
-  const pickup = usePickup(csrf ? "counter" : "client", csrf, created, staffUsername);
-  const { draft, configuration, catalog, busy } = pickup;
+  const ordering = useOrdering(csrf ? "counter" : "client", csrf, created, staffUsername);
+  const { draft, configuration, catalog, busy, fulfillment } = ordering;
 
   useEffect(() => { setVerified(false); }, [draft.pending?.key, draft.recoveryRequired]);
 
-  const locked = busy || Boolean(draft.pending) || draft.reviewRequired || !configuration?.features.pickup;
+  const editable = !busy && !draft.pending;
+  const locked = !editable || draft.reviewRequired || !fulfillment;
+  const delivery = fulfillment === "delivery";
   const products = catalog?.items.filter((product) => (!category || product.category_id === category)
     && product.name.toLocaleLowerCase("pt-BR").includes(search.trim().toLocaleLowerCase("pt-BR"))) ?? [];
   const categories = [...new Map(
     catalog?.items.map((product) => [product.category_id, product.category_name]),
   ).entries()];
-  const total = draft.items.reduce((sum, item) => sum + item.quantity * item.unit_price_cents, 0);
   const checkoutDisabled = locked || !draft.items.length || !draft.customerName.trim()
-    || Boolean(pickup.catalogError) || Boolean(pickup.configurationSync.error);
+    || (delivery && !draft.address.trim())
+    || Boolean(ordering.catalogError) || Boolean(ordering.configurationSync.error);
 
   function checkout(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    void pickup.submit();
+    void ordering.submit();
   }
 
   async function restartAfterVerification() {
     setVerified(false);
-    if (await pickup.restartAfterVerification()) setLastOrder(undefined);
+    if (await ordering.restartAfterVerification()) setLastOrder(undefined);
   }
 
   return <>
     {!csrf && <PageHeading title="Nosso cardápio">
-      <p>Escolha seus produtos e faça seu pedido para retirada.</p>
+      <p>Escolha seus produtos e como prefere receber seu pedido.</p>
     </PageHeading>}
-    <Synchronization error={pickup.configurationSync.error} syncedAt={pickup.configurationSync.syncedAt} />
-    {configuration && !configuration.features.pickup && <p role="status" className="info-card">
-      A retirada está desabilitada. Novos pedidos das outras modalidades estarão disponíveis nas próximas etapas.
+    <Synchronization error={ordering.configurationSync.error} syncedAt={ordering.configurationSync.syncedAt} />
+    {configuration && !ordering.fulfillments.length && <p role="status" className="info-card">
+      Retirada e entrega estão desabilitadas para novos pedidos.
       Os pedidos já confirmados continuam disponíveis para acompanhamento e conclusão.
     </p>}
-    {(pickup.feedback || pickup.storageError) && <p role="status" className="info-card">
-      {pickup.storageError || pickup.feedback}
+    {(ordering.feedback || ordering.storageError) && <p role="status" className="info-card">
+      {ordering.storageError || ordering.feedback}
     </p>}
-    <div className="menu-layout pickup-layout">
+    <div className="menu-layout ordering-layout">
       <section aria-label="Produtos do cardápio">
         <div className="toolbar">
           <div className="categories" aria-label="Categorias">
@@ -73,11 +79,11 @@ export function Pickup({ csrf, staffUsername, onCreated }: PickupProps) {
             maxLength={120} value={search} onChange={(event) => setSearch(event.target.value)}
           />
         </div>
-        {pickup.catalogError && <div className="info-card">
-          <p role="alert">{pickup.catalogError}</p>
-          <button className="secondary" onClick={() => void pickup.loadCatalog()}>Recarregar cardápio</button>
+        {ordering.catalogError && <div className="info-card">
+          <p role="alert">{ordering.catalogError}</p>
+          <button className="secondary" onClick={() => void ordering.loadCatalog()}>Recarregar cardápio</button>
         </div>}
-        {!catalog && !pickup.catalogError && <p role="status">Carregando cardápio…</p>}
+        {!catalog && !ordering.catalogError && <p role="status">Carregando cardápio…</p>}
         {catalog && !products.length && <p>Nenhum produto encontrado.</p>}
         <div className="products">
           {products.map((product) => <article className="product" key={product.id}>
@@ -94,7 +100,7 @@ export function Pickup({ csrf, staffUsername, onCreated }: PickupProps) {
                   className="add" aria-label={"Adicionar " + product.name}
                   disabled={locked || !product.available
                     || (draft.items.length >= 50 && !draft.items.some((item) => item.product_id === product.id))}
-                  onClick={() => pickup.changeQuantity(product, 1)}
+                  onClick={() => ordering.changeQuantity(product, 1)}
                 >+</button>
               </div>
             </div>
@@ -102,7 +108,17 @@ export function Pickup({ csrf, staffUsername, onCreated }: PickupProps) {
         </div>
       </section>
       <aside className="cart" aria-label="Seu pedido">
-        <div className="cart-header"><h2>{csrf ? "Novo pedido" : "Seu pedido"}</h2><span>Retirada</span></div>
+        <div className="cart-header">
+          <h2>{csrf ? "Novo pedido" : "Seu pedido"}</h2>
+          {fulfillment && <span>{fulfillmentNames[fulfillment]}</span>}
+        </div>
+        {!draft.pending && ordering.fulfillments.length > 1 && <div className="fulfillment-picker">
+          <label htmlFor={csrf ? "counter-fulfillment" : "fulfillment"}>Como você prefere receber?</label>
+          <select
+            id={csrf ? "counter-fulfillment" : "fulfillment"} value={fulfillment} disabled={!editable}
+            onChange={(event) => ordering.changeFulfillment(event.target.value as Fulfillment)}
+          >{ordering.fulfillments.map((value) => <option key={value} value={value}>{fulfillmentChoices[value]}</option>)}</select>
+        </div>}
         <form className="cart-content" onSubmit={checkout}>
           {!draft.items.length && <div className="cart-empty">
             <strong>Seu carrinho está vazio</strong><p>Adicione produtos para começar.</p>
@@ -116,12 +132,12 @@ export function Pickup({ csrf, staffUsername, onCreated }: PickupProps) {
             <div className="quantity">
               <button
                 type="button" disabled={locked} aria-label={"Diminuir " + item.name}
-                onClick={() => pickup.changeQuantity(item, -1)}
+                onClick={() => ordering.changeQuantity(item, -1)}
               >−</button>
               <span aria-label={"Quantidade de " + item.name}>{item.quantity}</span>
               <button
                 type="button" disabled={locked || item.quantity >= 99} aria-label={"Aumentar " + item.name}
-                onClick={() => pickup.changeQuantity(item, 1)}
+                onClick={() => ordering.changeQuantity(item, 1)}
               >+</button>
             </div>
           </div>)}
@@ -129,13 +145,25 @@ export function Pickup({ csrf, staffUsername, onCreated }: PickupProps) {
           <input
             id={csrf ? "counter-customer" : "customer-name"} value={draft.customerName}
             required minLength={1} maxLength={120} autoComplete="name" disabled={busy || Boolean(draft.pending)}
-            onChange={(event) => pickup.changeName(event.target.value)}
+            onChange={(event) => ordering.changeName(event.target.value)}
           />
-          <div className="totals"><div className="grand-total">
-            <span>Total</span><strong>{currency.format(total / 100)}</strong>
-          </div></div>
+          {delivery && <>
+            <label htmlFor={csrf ? "counter-address" : "delivery-address"}>Endereço de entrega</label>
+            <input
+              id={csrf ? "counter-address" : "delivery-address"} value={ordering.address}
+              required maxLength={500} autoComplete="street-address" placeholder="Rua, número e bairro"
+              disabled={!editable} onChange={(event) => ordering.changeAddress(event.target.value)}
+            />
+          </>}
+          <div className="totals">
+            <div><span>Subtotal</span><span>{currency.format(ordering.subtotal / 100)}</span></div>
+            {delivery && <div><span>Taxa de entrega</span><span>{currency.format(ordering.fee / 100)}</span></div>}
+            <div className="grand-total">
+              <span>Total</span><strong>{currency.format(ordering.total / 100)}</strong>
+            </div>
+          </div>
           {draft.reviewRequired && <button
-            type="button" className="secondary" disabled={busy} onClick={() => void pickup.review()}
+            type="button" className="secondary" disabled={busy} onClick={() => void ordering.review()}
           >Revisar preços e disponibilidade</button>}
           {draft.pending ? <>
             <p role="status">Envio pendente de confirmação. Os itens estão preservados e a edição está bloqueada.</p>
@@ -146,7 +174,7 @@ export function Pickup({ csrf, staffUsername, onCreated }: PickupProps) {
             {draft.recoveryRequired && <>
               <button
                 className="secondary" type="button" disabled={busy}
-                onClick={() => void pickup.recoverIdentification()}
+                onClick={() => void ordering.recoverIdentification()}
               >Recuperar identificação</button>
               <p>
                 Se a identificação não puder ser recuperada, confira o resultado com o atendimento antes de iniciar
@@ -165,9 +193,11 @@ export function Pickup({ csrf, staffUsername, onCreated }: PickupProps) {
               {busy ? "Confirmando…" : "Tentar confirmar o mesmo envio"}
             </button>}
           </> : <button className="primary checkout" disabled={checkoutDisabled}>
-            {busy ? "Confirmando…" : "Confirmar retirada"}
+            {busy ? "Confirmando…" : confirmLabels[fulfillment ?? "pickup"]}
           </button>}
-          <p className="cart-note">O valor e a disponibilidade serão validados ao confirmar.</p>
+          <p className="cart-note">
+            O valor, a taxa e a disponibilidade serão validados ao confirmar.
+          </p>
         </form>
       </aside>
     </div>

@@ -1,7 +1,7 @@
 import { useCallback, useState, type FormEvent } from "react";
 import { api, errorMessage, type OrderOperation } from "../api";
 import { usePolling } from "../hooks/usePolling";
-import { currency, stateNames } from "../orders";
+import { currency, fulfillmentNames, stateNames } from "../ordering/format";
 import { useStaff } from "./Staff";
 
 const operationNames = { pending: "Em processamento", needs_attention: "Precisa de atenção", rejected: "Rejeitado", succeeded: "Confirmado" };
@@ -51,7 +51,7 @@ export function Operations() {
     <div className="section-heading"><h2>Verificação de envios</h2>
       <button className="secondary" onClick={sync.refresh}>Atualizar envios</button></div>
     <p>Consulte tentativas que ainda não entraram na fila e verifique o resultado pela referência informada pelo cliente.</p>
-    <form className="actions" onSubmit={find}>
+    <form className="filter-bar" onSubmit={find}>
       <label>Referência do envio<input value={search} onChange={(event) => setSearch(event.target.value)}
         maxLength={36} pattern="[a-fA-F0-9-]{36}" /></label>
       <button className="secondary">Buscar envio</button>
@@ -65,7 +65,7 @@ export function Operations() {
     {feedback && <p role="status">{feedback}</p>}
     {sync.value?.page.items.length === 0 && <p>Nenhum envio encontrado.</p>}
     {sync.value?.page.items.map((operation) => <article className="info-card" key={operation.operation_id}>
-      <h3>{operation.customer_name} · {operationNames[operation.state]}</h3>
+      <h3>{operation.customer_name} · {fulfillmentNames[operation.fulfillment]} · {operationNames[operation.state]}</h3>
       <p>Referência: <code>{operation.idempotency_key}</code></p>
       <p>{new Date(operation.created_at).toLocaleString("pt-BR")} · Tentativas: {operation.attempts}</p>
       {operation.error && <p>{operation.error.message}</p>}

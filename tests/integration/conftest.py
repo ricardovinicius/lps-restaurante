@@ -1,9 +1,13 @@
+from contextlib import ExitStack
 from pathlib import Path
 import os
 import subprocess
 from uuid import uuid4
 
+import httpx
 import pytest
+
+from tests.integration.support import CATALOG, CONFIG, ORDERS, sign_in
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -34,3 +38,28 @@ def deployment():
         yield "http://" + compose("port", "gateway", "80"), passwords, compose
     finally:
         compose("down", "--volumes", "--remove-orphans")
+
+
+@pytest.fixture
+def shop(deployment):
+    base, passwords, compose = deployment
+    with ExitStack() as stack:
+        admin, operator, customer = [
+            stack.enter_context(httpx.Client(base_url=base, timeout=15)) for _ in range(3)
+        ]
+        sign_in(admin, passwords, "admin")
+        sign_in(operator, passwords, "operator")
+        current = admin.get(CONFIG).json()
+        response = admin.put(CONFIG, json={
+            "expected_revision": current["revision"],
+            "features": {**current["features"], "pickup": True},
+        })
+        assert response.status_code == 200, response.text
+        catalog = admin.get(CATALOG + "/admin/products").json()
+        product = catalog["items"][0]
+        response = admin.patch(CATALOG + "/products/" + product["id"], json={
+            "expected_revision": catalog["revision"], "available": True, "price_cents": 3290,
+        })
+        assert response.status_code == 200, response.text
+        assert customer.post(ORDERS + "/customer-contexts").status_code == 201
+        yield admin, operator, customer, compose, response.json()["product"]

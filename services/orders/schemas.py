@@ -23,12 +23,16 @@ class CheckoutItem(Input):
     expected_unit_price_cents: int = Field(strict=True, gt=0, le=2147483647)
 
 
+Fulfillment = Literal["pickup", "delivery"]
+
+
 class Checkout(Input):
     configuration_revision: int = Field(strict=True, gt=0, le=2147483647)
     catalog_revision: int = Field(strict=True, gt=0, le=2147483647)
     origin: Literal["client", "counter"]
-    fulfillment: Literal["pickup"]
+    fulfillment: Fulfillment
     customer_name: str = Field(min_length=1, max_length=120)
+    address: str | None = Field(default=None, min_length=1, max_length=500)
     items: list[CheckoutItem] = Field(min_length=1, max_length=50)
 
     @field_validator("customer_name", mode="before")
@@ -41,6 +45,21 @@ class Checkout(Input):
             raise ValueError("Informe seu nome.")
         return value
 
+    @field_validator("address", mode="before")
+    @classmethod
+    def trim_address(cls, value):
+        return value.strip() if isinstance(value, str) else value
+
+    @model_validator(mode="after")
+    def address_matches_fulfillment(self):
+        if self.fulfillment == "delivery" and not self.address:
+            raise ValueError("Informe o endereço de entrega.")
+
+        if self.fulfillment != "delivery" and self.address is not None:
+            raise ValueError("Endereço só é aceito em pedidos de entrega.")
+
+        return self
+
     @model_validator(mode="after")
     def unique_products(self):
         if len({item.product_id for item in self.items}) != len(self.items):
@@ -51,7 +70,7 @@ class Checkout(Input):
 
 class TransitionInput(Input):
     expected_version: int = Field(strict=True, gt=0, le=2147483647)
-    target_state: Literal["preparing", "ready", "completed"]
+    target_state: Literal["preparing", "ready", "dispatched", "completed"]
 
 
 class ItemView(BaseModel):
@@ -62,6 +81,14 @@ class ItemView(BaseModel):
     unit_price_cents: int
     quantity: int
     subtotal_cents: int
+
+
+class DeliveryDetails(BaseModel):
+    """Read from Entregas on demand; `available=False` when it cannot answer now."""
+
+    available: bool
+    address: str | None = None
+    dispatched_at: datetime | None = None
 
 
 class OrderView(BaseModel):
@@ -81,6 +108,8 @@ class OrderView(BaseModel):
     total_cents: int
     created_at: datetime
     updated_at: datetime
+    delivery: DeliveryDetails | None = None
+    dispatch_state: Literal["pending", "needs_attention"] | None = None
 
 
 class OrderPage(BaseModel):
@@ -113,6 +142,7 @@ class OperationSummary(BaseModel):
     state: str
     customer_name: str
     origin: str
+    fulfillment: str
     attempts: int
     created_at: datetime
     updated_at: datetime
@@ -121,4 +151,28 @@ class OperationSummary(BaseModel):
 
 class OperationPage(BaseModel):
     items: list[OperationSummary]
+    next_cursor: str | None
+
+
+class PendingDispatch(BaseModel):
+    operation_id: UUID
+    order_id: UUID
+    state: Literal["pending", "needs_attention"]
+    status_url: str
+
+
+class DispatchSummary(BaseModel):
+    operation_id: UUID
+    order_id: UUID
+    order_number: int
+    customer_name: str | None
+    state: Literal["pending", "succeeded", "needs_attention"]
+    attempts: int
+    created_at: datetime
+    updated_at: datetime
+    error: OperationError | None
+
+
+class DispatchPage(BaseModel):
+    items: list[DispatchSummary]
     next_cursor: str | None

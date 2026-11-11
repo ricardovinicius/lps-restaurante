@@ -41,7 +41,7 @@ test("cliente envia retirada e acompanha os estados operados em outra sessão", 
     await expect(tracked.locator("[aria-current=step]")).toHaveText("Concluído");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 
-    await counter.getByText("Criar pedido de retirada", { exact: true }).click();
+    await counter.getByText("Criar pedido", { exact: true }).click();
     await counter.getByRole("button", { name: "Adicionar " + product.name, exact: true }).click();
     const counterName = "Pedido do balcão " + Date.now();
     await counter.getByLabel("Nome para identificação").fill(counterName);

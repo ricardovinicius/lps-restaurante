@@ -20,7 +20,10 @@ class AdmissionInput(Input):
     principal: str = Field(min_length=1, max_length=200)
     revision: int = Field(strict=True, gt=0, le=2147483647)
     origin: Literal["client", "counter"]
-    fulfillment: Literal["pickup"]
+    fulfillment: Literal["pickup", "delivery"]
+
+
+FULFILLMENT_NAMES = {"pickup": "A retirada", "delivery": "A entrega"}
 
 
 class AdmissionReceipt(BaseModel):
@@ -51,8 +54,9 @@ def admit(operation_id: UUID, payload: AdmissionInput, response: Response, db=De
             "revision": configuration.revision,
         })
 
-    if not configuration.pickup:
-        raise ApiError(403, "feature_disabled", "A retirada está desabilitada para novos pedidos.")
+    if not getattr(configuration, payload.fulfillment):
+        name = FULFILLMENT_NAMES[payload.fulfillment]
+        raise ApiError(403, "feature_disabled", f"{name} está desabilitada para novos pedidos.")
 
     receipt = AdmissionReceipt(configuration_revision=configuration.revision)
     db.add(Admission(

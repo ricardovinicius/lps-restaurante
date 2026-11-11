@@ -1,8 +1,8 @@
 # Contratos HTTP v1
 
-As rotas de Configuração, Acesso, Catálogo e retirada estão implementadas, incluindo
-admissões e cotações internas. Mesas, Entregas, TV e resumo descrevem as etapas
-seguintes. Cada serviço gera OpenAPI a partir de seus modelos e rotas em `/openapi.json`.
+As rotas de Configuração, Acesso, Catálogo, retirada e entrega estão implementadas,
+incluindo admissões, cotações, endereços e despachos internos. Mesas, TV e resumo
+descrevem as etapas seguintes. Cada serviço gera OpenAPI a partir de seus modelos e rotas em `/openapi.json`.
 Os contratos de saúde implementados estão em `docs/contracts/health-*.json`.
 
 ## Convenções
@@ -38,7 +38,7 @@ Mutações de configuração, catálogo e estado exigem `expected_revision` ou
 | PUT /v1/configuration | Admin + CSRF | expected_revision, features | 200 configuração validada; 409 revisão antiga |
 | GET /v1/configuration/presets | Admin | — | Modelos JSON validados pelo servidor |
 | GET /v1/configuration/export | Admin | — | version do formato, name, features, services |
-| POST /internal/v1/admissions/{operation_id} | Serviço Pedidos | principal, revision, origin, fulfillment | 201 autorização persistida ou 200 replay; 409 revisão antiga |
+| POST /internal/v1/admissions/{operation_id} | Serviço Pedidos | principal, revision, origin, fulfillment (`pickup` ou `delivery`) | 201 autorização persistida ou 200 replay; 409 revisão antiga; 403 modalidade desabilitada |
 | POST /internal/v1/sessions/verify | Serviço autorizado | token, required_scope, csrf_token opcional | username, role, expires_at ou 401/403 |
 
 O cookie `mesa_staff` tem caminho `/api`, é HttpOnly e usa SameSite=Lax.
@@ -75,17 +75,18 @@ Cotação aceita é persistida por operation_id; replay com payload distinto ret
 | POST /v1/operations/{id}/resume | Admin + CSRF | — | Retoma needs_attention, com auditoria; 409 nos demais estados |
 | GET /v1/my-orders | Contexto cliente | status=active|completed?, cursor, limit | Pedidos apenas do contexto |
 | GET /v1/orders/{id} | Dono, mesa autorizada ou operador | — | Pedido e estado |
-| GET /v1/queue | Operador | fulfillment?, cursor, limit | Pedidos confirmados não concluídos |
-| POST /v1/orders/{id}/transitions | Operador + CSRF | expected_version, target_state + Idempotency-Key | Pedido atualizado ou replay |
+| GET /v1/queue | Operador | fulfillment=pickup|delivery?, cursor, limit | Pedidos confirmados não concluídos |
+| POST /v1/orders/{id}/transitions | Operador + CSRF | expected_version, target_state + Idempotency-Key | Pedido atualizado ou replay; 202 despacho pendente |
+| GET /v1/dispatches | Admin ou operador | state?, cursor, limit | Saídas para entrega; padrão needs_attention |
+| POST /v1/dispatches/{id}/resume | Admin + CSRF | — | 202 retoma needs_attention, com auditoria; 409 nos demais estados |
 | GET /v1/table-orders | Contexto tablet | cursor, limit | Histórico da mesa da credencial, incluindo concluídos |
 | GET /v1/tv | Público com feature ativa | limit, preparing_cursor?, ready_cursor? | Páginas por estado: number, fulfillment, table_number |
 | GET /v1/summary | Admin | — | active_orders, completed_order_value_cents |
 
 Payload de criação:
 
-Na etapa 4, somente `origin=client|counter` e `fulfillment=pickup` são aceitos.
-Entrega, mesa e tablet serão integrados nas próximas etapas. O exemplo completo
-abaixo descreve o contrato futuro de entrega; na retirada, omitir `address`.
+Aceita `origin=client|counter` e `fulfillment=pickup|delivery`. Mesa e tablet
+serão integrados na etapa 6. Na retirada, omitir `address`.
 
 ```json
 {
@@ -107,6 +108,21 @@ obrigatório somente para entrega (1–500). Mesa exige table_id; tablet deriva 
 ID da credencial e dispensa nome. Rejeitar combinações incompatíveis; validar origin
 contra o principal autenticado. Subtotal/taxa/total não são aceitos como autoridade
 do cliente. Para esse exemplo total = 2 × 3290 + 500 = 7080 centavos.
+
+Pedidos de entrega retornam `fee_cents=500` e `delivery`: `{available, address,
+dispatched_at}`, lido de Entregas a cada consulta autorizada do dono ou do operador.
+Se Entregas não responder, a leitura não falha: `available=false` e o endereço fica
+ausente. `dispatch_state` vale `pending` ou `needs_attention` enquanto a saída para
+entrega aguarda confirmação. Retirada usa `delivery=null`. Snapshots de replay das
+transições não guardam esses campos; eles são lidos novamente na resposta.
+
+Estados: retirada `received → preparing → ready → completed`; entrega
+`received → preparing → ready → dispatched → completed`. Em uma entrega `ready`,
+`target_state=dispatched` retorna 200 com o pedido despachado ou 202
+`{operation_id, order_id, state, status_url}` quando Entregas ainda não confirmou.
+Enquanto houver despacho pendente, outras transições do pedido retornam 409. Uma
+chave de idempotência serve a uma única ação do operador, seja transição ou despacho;
+reutilizá-la em outra ação retorna 409, inclusive em requisições simultâneas.
 
 Idempotency-Key: UUID gerado pelo frontend antes do envio e mantido durante retries.
 Resposta 202: `{operation_id, state: "pending", status_url}`. Não limpar carrinho
@@ -143,11 +159,15 @@ operador não é autenticação de clientes de um restaurante comercial.
 | Método / caminho | Acesso | Entrada | Resultado |
 | --- | --- | --- | --- |
 | PUT /internal/v1/deliveries/{order_id} | Pedidos | operation_id, address | 201 persistido ou 200 replay; fee_cents=500 |
-| GET /internal/v1/deliveries/{order_id} | Pedidos | — | Endereço/taxa/despacho para resposta autorizada |
-| PUT /internal/v1/deliveries/{order_id}/dispatch | Pedidos | transition_id, dispatched_at | Despacho idempotente |
+| POST /internal/v1/deliveries/lookup | Pedidos | order_ids (1–100) | Endereço, taxa e despacho dos pedidos encontrados |
+| PUT /internal/v1/deliveries/{order_id}/dispatch | Pedidos | transition_id, dispatched_at | 201 registrado ou 200 replay; 404 sem entrega |
 
 Mesmo ID com conteúdo diferente retorna 409. Entregas não altera diretamente o
 banco de Pedidos e não serve estado operacional concorrente ao de Pedidos.
+A consulta em lote substitui o GET individual previsto inicialmente: a fila e o
+acompanhamento leem uma página inteira em uma chamada. Pedidos trata respostas de
+Entregas como dados internos; nenhum conflito de Entregas rejeita o pedido do cliente,
+apenas mantém a operação em recuperação até a intervenção administrativa.
 
 ## Timeouts e repetição
 

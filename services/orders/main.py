@@ -3,11 +3,13 @@ from contextlib import asynccontextmanager
 
 from mesa_platform.application import create_app
 from services.orders.routes import router
+from services.orders.transition_routes import router as transition_router
 from services.orders.worker import run_worker
 
 
 app = create_app("orders")
 app.include_router(router)
+app.include_router(transition_router)
 database_lifespan = app.router.lifespan_context
 
 

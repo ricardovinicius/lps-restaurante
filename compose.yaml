@@ -67,6 +67,7 @@ services:
       MESA_ORDERS_ACCESS_KEY: ${MESA_ORDERS_ACCESS_KEY:?Set MESA_ORDERS_ACCESS_KEY}
       MESA_CONFIGURATION_URL: http://configuration:8000
       MESA_CATALOG_URL: http://catalog:8000
+      MESA_DELIVERIES_URL: http://deliveries:8000
       MESA_SECURE_COOKIES: ${MESA_SECURE_COOKIES:-0}
       MESA_DATABASE_URL: postgresql+psycopg://mesa_orders:${ORDERS_DB_PASSWORD:?Set ORDERS_DB_PASSWORD}@postgres:5432/mesa_orders
     depends_on:
@@ -84,6 +85,7 @@ services:
       args:
         SERVICE: deliveries
     environment:
+      MESA_ORDERS_ACCESS_KEY: ${MESA_ORDERS_ACCESS_KEY:?Set MESA_ORDERS_ACCESS_KEY}
       MESA_DATABASE_URL: postgresql+psycopg://mesa_deliveries:${DELIVERIES_DB_PASSWORD:?Set DELIVERIES_DB_PASSWORD}@postgres:5432/mesa_deliveries
     depends_on:
       postgres:

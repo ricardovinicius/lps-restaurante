@@ -1,4 +1,4 @@
-"""Orders, customer credentials and durable checkout progress owned by Pedidos."""
+"""Orders, customer credentials and durable checkout/dispatch progress owned by Pedidos."""
 
 from datetime import datetime
 from uuid import UUID
@@ -67,6 +67,17 @@ class OrderItem(Base):
     subtotal_cents: Mapped[int] = mapped_column(BigInteger, nullable=False)
 
 
+class ActionKey(Base):
+    """One reservation per operator key, shared by plain transitions and dispatches."""
+
+    __tablename__ = "action_keys"
+
+    principal_id: Mapped[str] = mapped_column(String(100), primary_key=True)
+    idempotency_key: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    order_id: Mapped[UUID] = mapped_column(ForeignKey("orders.id"), nullable=False)
+    created_at = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
 class Transition(Base):
     __tablename__ = "transitions"
     __table_args__ = (UniqueConstraint("principal_id", "idempotency_key", name="unique_transition_key"),)
@@ -101,6 +112,7 @@ class CheckoutOperation(Base):
     state: Mapped[str] = mapped_column(String(16), nullable=False)
     admission: Mapped[dict | None] = mapped_column(JSON)
     quote: Mapped[dict | None] = mapped_column(JSON)
+    delivery: Mapped[dict | None] = mapped_column(JSON)
     error: Mapped[dict | None] = mapped_column(JSON)
     error_status: Mapped[int | None] = mapped_column(Integer)
     attempts: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -116,5 +128,42 @@ class OperationResume(Base):
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
     operation_id: Mapped[UUID] = mapped_column(ForeignKey("checkout_operations.id"), nullable=False)
+    actor: Mapped[str] = mapped_column(String(80), nullable=False)
+    created_at = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class DispatchOperation(Base):
+    """Durable "out for delivery" intent; its id is the dispatch transition id."""
+
+    __tablename__ = "dispatch_operations"
+    __table_args__ = (
+        UniqueConstraint("principal_id", "idempotency_key", name="unique_dispatch_key"),
+        CheckConstraint("state IN ('pending', 'succeeded', 'needs_attention')", name="valid_dispatch_state"),
+        CheckConstraint("attempts >= 0", name="valid_dispatch_attempts"),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    order_id: Mapped[UUID] = mapped_column(ForeignKey("orders.id"), nullable=False, unique=True)
+    principal_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    idempotency_key: Mapped[UUID] = mapped_column(Uuid, nullable=False)
+    payload_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    expected_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    dispatched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    state: Mapped[str] = mapped_column(String(16), nullable=False)
+    error: Mapped[dict | None] = mapped_column(JSON)
+    error_status: Mapped[int | None] = mapped_column(Integer)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False)
+    next_attempt_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), index=True)
+    lease_id: Mapped[UUID | None] = mapped_column(Uuid)
+    lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class DispatchResume(Base):
+    __tablename__ = "dispatch_resumes"
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    operation_id: Mapped[UUID] = mapped_column(ForeignKey("dispatch_operations.id"), nullable=False)
     actor: Mapped[str] = mapped_column(String(80), nullable=False)
     created_at = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())

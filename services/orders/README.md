@@ -1,20 +1,24 @@
 # orders
 
 Serviço FastAPI independente com banco e role `mesa_orders`, modelos SQLAlchemy
-e histórico Alembic em `migrations/`. Cria retiradas com snapshots e idempotência,
-mantém a fila, o acompanhamento e as transições com controle de concorrência.
+e histórico Alembic em `migrations/`. Cria retiradas e entregas com snapshots e
+idempotência, mantém a fila, o acompanhamento e as transições com controle de
+concorrência. É a fonte canônica do estado público, inclusive de "Saiu para entrega".
 A prontidão exige o banco/usuário corretos e schema na revisão atual.
 
-As chamadas internas de admissão e cotação usam `MESA_ORDERS_ACCESS_KEY`,
-`MESA_CONFIGURATION_URL` e `MESA_CATALOG_URL`. O contexto do cliente usa cookie
+As chamadas internas de admissão, cotação, endereço e despacho usam
+`MESA_ORDERS_ACCESS_KEY`, `MESA_CONFIGURATION_URL`, `MESA_CATALOG_URL` e
+`MESA_DELIVERIES_URL`. O endereço fica em Entregas: Pedidos o guarda na operação só
+até o recibo remoto e o lê em lote nas consultas autorizadas. O contexto do cliente usa cookie
 HttpOnly; seu identificador público não autoriza a consulta de pedidos.
 
-O worker retoma operações pendentes a cada três segundos, com lease de 30 segundos
+O worker retoma criações e despachos pendentes a cada três segundos, com lease de 30 segundos
 e backoff limitado a 60 segundos. Após dez tentativas, a operação exige intervenção.
 Um administrador autenticado pode retomá-la por
 `POST /api/orders/v1/operations/{id}/resume`, com `X-CSRF-Token`; a ação é auditada.
-Na interface, use Administração → Envios. O Balcão também consulta as tentativas
-pela referência informada pelo cliente, mas a retomada exige administrador.
+Despachos esgotados usam `POST /api/orders/v1/dispatches/{id}/resume`, auditado em
+`dispatch_resumes`. Na interface, use Administração → Envios. O Balcão também consulta
+as tentativas e as saídas para entrega, mas a retomada exige administrador.
 
 A perda do cookie pode ser recuperada com uma credencial independente preservada
 no navegador e armazenada apenas como hash no banco. Tentativas antigas sem essa

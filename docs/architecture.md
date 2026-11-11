@@ -1,7 +1,7 @@
 # Arquitetura do Mesa Fácil
 
-Status: Configuração, Acesso, Catálogo e o fluxo de retirada estão implementados.
-Entregas, Mesas, Comanda e TV permanecem nas próximas etapas dos
+Status: Configuração, Acesso, Catálogo, retirada e entrega estão implementados.
+Mesas, Comanda e TV permanecem nas próximas etapas dos
 [contratos](contracts/http.md). O protótipo permanece independente.
 
 ## Organização

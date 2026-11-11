@@ -16,9 +16,10 @@ class JsonResponse:
     body: Any
 
 
-def post_json(url, payload, *, service_key, request_id):
+def send_json(method, url, payload, *, service_key, request_id):
     request = Request(
         url,
+        method=method,
         data=json.dumps(payload).encode(),
         headers={
             "Content-Type": "application/json",
@@ -38,3 +39,7 @@ def post_json(url, payload, *, service_key, request_id):
                 body = None
 
             return JsonResponse(error.code, body)
+
+
+def post_json(url, payload, *, service_key, request_id):
+    return send_json("POST", url, payload, service_key=service_key, request_id=request_id)

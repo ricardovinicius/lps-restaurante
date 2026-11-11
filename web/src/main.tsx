@@ -3,9 +3,10 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter, Link, NavLink, Outlet, Route, Routes } from "react-router";
 import { api, type Configuration } from "./api";
 import { Load, PageHeading } from "./components";
+import { Dispatches } from "./components/orders/Dispatches";
 import { Catalog } from "./pages/Catalog";
 import { Counter } from "./pages/Counter";
-import { Pickup } from "./pages/Pickup";
+import { Ordering } from "./pages/Ordering";
 import { Operations } from "./pages/Operations";
 import { Settings } from "./pages/Settings";
 import { AdminLayout, LegacyEntry, Staff, useStaff } from "./pages/Staff";
@@ -68,12 +69,12 @@ createRoot(document.getElementById("root")!).render(
     <Routes>
       <Route element={<Layout />}>
         <Route index element={<LegacyEntry />} />
-        <Route path="cliente" element={<Pickup />} />
+        <Route path="cliente" element={<Ordering />} />
         <Route path="admin" element={<Staff role="admin" />}>
           <Route element={<AdminLayout />}>
             <Route index element={<SettingsRoute />} />
             <Route path="catalogo" element={<CatalogRoute />} />
-            <Route path="envios" element={<Operations />} />
+            <Route path="envios" element={<><Operations /><Dispatches /></>} />
           </Route>
         </Route>
         <Route path="balcao" element={<Staff role="operator" />}>

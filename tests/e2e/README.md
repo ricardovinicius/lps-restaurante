@@ -3,8 +3,13 @@
 As jornadas de retirada estão em `web/e2e/pickup.spec.ts`, com Playwright sobre
 as APIs e o PostgreSQL reais. Cobrem Cliente e Balcão em contextos independentes,
 persistência do carrinho, estados, resposta perdida, reenvio sem duplicidade,
-revisão de preços e respostas atrasadas após navegação. Entrega, rodadas da mesa e
-TV serão adicionadas nas próximas etapas.
+revisão de preços e respostas atrasadas após navegação. Rodadas da mesa e TV serão
+adicionadas nas próximas etapas.
+
+`web/e2e/delivery.spec.ts` cobre a escolha da modalidade, endereço e taxa no
+carrinho, o endereço na fila do Balcão, "Saiu para entrega" e conclusão vistos pelo
+Cliente, a criação de entregas pelo Balcão e a preservação de uma entrega aceita
+depois de desabilitar a modalidade.
 
 `web/e2e/recovery.spec.ts` cobre a perda do cookie, o fluxo de tentativas antigas
 sem credencial, o histórico sob demanda e a retomada administrativa pela interface.

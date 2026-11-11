@@ -45,6 +45,34 @@
   border-radius: 8px;
 }
 
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.filter-bar label {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.filter-bar input,
+.filter-bar select {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 9px 12px;
+  background: #fff;
+  font-size: 12px;
+}
+
+.filter-bar input {
+  width: 22rem;
+  max-width: 100%;
+}
+
 .login-form {
   max-width: 380px;
 }
@@ -83,8 +111,8 @@
   margin-bottom: 18px;
 }
 
-.pickup-layout .quantity button,
-.pickup-layout .add {
+.ordering-layout .quantity button,
+.ordering-layout .add {
   min-width: 32px;
   min-height: 32px;
 }

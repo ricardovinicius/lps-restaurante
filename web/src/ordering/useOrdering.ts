@@ -1,29 +1,40 @@
 import { useState } from "react";
-import type { Order, Product } from "./api";
-import { usePickupCheckout } from "./pickup/checkout";
-import { usePickupDraft, type CartItem } from "./pickup/draft";
-import { usePickupMenu } from "./pickup/menu";
+import type { Fulfillment, Order, Product } from "../api";
+import { useOrderCheckout } from "./checkout";
+import { useOrderDraft, type CartItem } from "./draft";
+import { availableFulfillments, feeFor, selectedFulfillment } from "./fulfillment";
+import { useOrderMenu } from "./menu";
 
-export const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
-export const stateNames = { received: "Recebido", preparing: "Em preparo", ready: "Pronto", completed: "Concluído" };
-
-export function usePickup(
+export function useOrdering(
   origin: Order["origin"],
   csrf: string | undefined,
   onCreated: (order: Order) => void,
   staffUsername?: string,
 ) {
-  const store = usePickupDraft(origin, staffUsername);
+  const store = useOrderDraft(origin, staffUsername);
   const [feedback, setFeedback] = useState("");
-  const menu = usePickupMenu(store, setFeedback);
-  const checkout = usePickupCheckout({ store, menu, origin, csrf, onCreated, setFeedback });
+  const menu = useOrderMenu(store, setFeedback);
+  const checkout = useOrderCheckout({ store, menu, origin, csrf, onCreated, setFeedback });
   const { draft, currentDraft, saveDraft, mounted, storageError } = store;
   const { configuration, loadCatalog } = menu;
   const { busy, setBusy } = checkout;
 
+  const fulfillments = availableFulfillments(configuration);
+  // A pending send keeps what was submitted, even if the configuration has changed since.
+  const fulfillment = draft.pending?.payload.fulfillment ?? selectedFulfillment(draft, configuration);
+  const address = draft.pending?.payload.address ?? draft.address;
+  const subtotal = draft.items.reduce((sum, item) => sum + item.quantity * item.unit_price_cents, 0);
+  const fee = feeFor(fulfillment);
+  const total = draft.items.length ? subtotal + fee : 0;
+
+  function canEdit() {
+    const current = currentDraft.current;
+    return !current.pending && !busy;
+  }
+
   function changeQuantity(product: Product | CartItem, change: number) {
     const current = currentDraft.current;
-    if (current.pending || busy || !configuration?.features.pickup || current.reviewRequired) return;
+    if (!canEdit() || !fulfillment || current.reviewRequired) return;
 
     const id = "product_id" in product ? product.product_id : product.id;
     const found = current.items.find((item) => item.product_id === id);
@@ -31,6 +42,7 @@ export function usePickup(
       setFeedback("Cada pedido pode ter até 50 produtos diferentes.");
       return;
     }
+
     const quantity = (found?.quantity ?? 0) + change;
     if (quantity > 99) return;
 
@@ -58,18 +70,28 @@ export function usePickup(
       setFeedback("Carrinho atualizado com os preços atuais. Produtos indisponíveis foram removidos. "
         + "Confira os itens e o total antes de confirmar.");
     }
+
     if (mounted.current) setBusy(false);
   }
 
   function changeName(customerName: string) {
-    if (!currentDraft.current.pending) saveDraft({ ...currentDraft.current, customerName });
+    if (canEdit()) saveDraft({ ...currentDraft.current, customerName });
+  }
+
+  function changeAddress(address: string) {
+    if (canEdit()) saveDraft({ ...currentDraft.current, address });
+  }
+
+  function changeFulfillment(value: Fulfillment) {
+    if (canEdit() && fulfillments.includes(value)) saveDraft({ ...currentDraft.current, fulfillment: value });
   }
 
   return {
     draft, feedback, storageError, busy,
     configuration, configurationSync: menu.configurationSync,
     catalog: menu.catalog, catalogError: menu.catalogError, loadCatalog,
-    changeQuantity, changeName, review,
+    fulfillments, fulfillment, address, subtotal, fee, total,
+    changeQuantity, changeName, changeAddress, changeFulfillment, review,
     submit: checkout.submit,
     recoverIdentification: checkout.recoverIdentification,
     restartAfterVerification: checkout.restartAfterVerification,

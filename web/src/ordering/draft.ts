@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { CreateOrder, Order } from "../api";
+import type { CreateOrder, Fulfillment, Order } from "../api";
 
 export type CartItem = { product_id: string; name: string; unit_price_cents: number; quantity: number };
 
@@ -13,24 +13,29 @@ export type Pending = {
 export type Draft = {
   items: CartItem[];
   customerName: string;
+  fulfillment?: Fulfillment;
+  address: string;
   configurationRevision?: number;
   pending?: Pending;
   reviewRequired?: boolean;
   recoveryRequired?: boolean;
 };
 
-export const emptyDraft = (): Draft => ({ items: [], customerName: "" });
+export const emptyDraft = (): Draft => ({ items: [], customerName: "", address: "" });
 
 function readDraft(key: string): Draft {
   try {
     const value = JSON.parse(localStorage.getItem(key) ?? "null") as Draft | null;
-    if (value && Array.isArray(value.items) && typeof value.customerName === "string") return value;
+    if (value && Array.isArray(value.items) && typeof value.customerName === "string") {
+      return { ...emptyDraft(), ...value };
+    }
   } catch {}
 
   return emptyDraft();
 }
 
-export function usePickupDraft(origin: Order["origin"], staffUsername?: string) {
+export function useOrderDraft(origin: Order["origin"], staffUsername?: string) {
+  // The key predates deliveries; keeping it preserves carts and pending sends across upgrades.
   const storageKey = "mesa-facil-pickup-" + origin + (staffUsername ? ":" + staffUsername : "");
   const mounted = useRef(true);
   const [draft, setDraft] = useState(() => readDraft(storageKey));
@@ -69,4 +74,4 @@ export function usePickupDraft(origin: Order["origin"], staffUsername?: string) 
   return { draft, currentDraft, saveDraft, archiveVerifiedAttempt, mounted, storageError };
 }
 
-export type PickupDraftStore = ReturnType<typeof usePickupDraft>;
+export type OrderDraftStore = ReturnType<typeof useOrderDraft>;

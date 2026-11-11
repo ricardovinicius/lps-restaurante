@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError, errorMessage, isCheckoutRejection, type Order } from "../api";
-import { emptyDraft, type Pending, type PickupDraftStore } from "./draft";
-import type { PickupMenu } from "./menu";
+import { emptyDraft, type Draft, type Pending, type OrderDraftStore } from "./draft";
+import { selectedFulfillment } from "./fulfillment";
+import type { OrderMenu } from "./menu";
 
 type CheckoutOptions = {
-  store: PickupDraftStore;
-  menu: PickupMenu;
+  store: OrderDraftStore;
+  menu: OrderMenu;
   origin: Order["origin"];
   csrf?: string;
   onCreated: (order: Order) => void;
@@ -15,7 +16,7 @@ type CheckoutOptions = {
 function usePendingOperation(
   operationId: string | undefined,
   origin: Order["origin"],
-  store: PickupDraftStore,
+  store: OrderDraftStore,
   confirmed: (order: Order) => void,
   reject: (message: string) => void,
   setFeedback: (message: string) => void,
@@ -66,7 +67,7 @@ function usePendingOperation(
   }, [operationId, confirmed, reject, origin, saveDraft, currentDraft, setFeedback]);
 }
 
-export function usePickupCheckout({ store, menu, origin, csrf, onCreated, setFeedback }: CheckoutOptions) {
+export function useOrderCheckout({ store, menu, origin, csrf, onCreated, setFeedback }: CheckoutOptions) {
   const { draft, currentDraft, saveDraft, mounted, archiveVerifiedAttempt } = store;
   const { configuration, currentConfiguration, catalog } = menu;
   const [busy, setBusy] = useState(false);
@@ -75,10 +76,14 @@ export function usePickupCheckout({ store, menu, origin, csrf, onCreated, setFee
   const confirmed = useCallback((order: Order) => {
     if (!mounted.current) return;
 
-    saveDraft({ ...emptyDraft(), configurationRevision: currentConfiguration.current?.revision });
+    saveDraft({
+      ...emptyDraft(),
+      fulfillment: currentDraft.current.fulfillment,
+      configurationRevision: currentConfiguration.current?.revision,
+    });
     setFeedback("Pedido #" + order.number + " confirmado. Acompanhe o andamento abaixo.");
     onCreated(order);
-  }, [saveDraft, onCreated, mounted, currentConfiguration, setFeedback]);
+  }, [saveDraft, onCreated, mounted, currentConfiguration, currentDraft, setFeedback]);
 
   const reject = useCallback((message: string) => {
     if (!mounted.current) return;
@@ -89,21 +94,20 @@ export function usePickupCheckout({ store, menu, origin, csrf, onCreated, setFee
 
   usePendingOperation(draft.pending?.operationId, origin, store, confirmed, reject, setFeedback);
 
-  async function submit() {
-    if (sending.current) return;
+  function newPending(current: Draft): Pending | undefined {
+    const fulfillment = selectedFulfillment(current, configuration);
+    const address = current.address.trim();
+    if (!configuration || !catalog || !fulfillment || current.reviewRequired) return undefined;
+    if (!current.items.length || !current.customerName.trim()) return undefined;
+    if (fulfillment === "delivery" && !address) return undefined;
 
-    const current = currentDraft.current;
-    const canCreate = configuration?.features.pickup && catalog && !current.reviewRequired
-      && current.items.length && current.customerName.trim();
-    if (!current.pending && !canCreate) return;
-    if (current.pending?.operationId) return;
-
-    const pending: Pending = current.pending ?? {
+    return {
       key: crypto.randomUUID(),
       payload: {
-        configuration_revision: configuration!.revision,
-        catalog_revision: catalog!.revision,
-        origin, fulfillment: "pickup" as const, customer_name: current.customerName.trim(),
+        configuration_revision: configuration.revision,
+        catalog_revision: catalog.revision,
+        origin, fulfillment, customer_name: current.customerName.trim(),
+        ...(fulfillment === "delivery" ? { address } : {}),
         items: current.items.map((item) => ({
           product_id: item.product_id,
           quantity: item.quantity,
@@ -111,6 +115,16 @@ export function usePickupCheckout({ store, menu, origin, csrf, onCreated, setFee
         })),
       },
     };
+  }
+
+  async function submit() {
+    if (sending.current) return;
+
+    const current = currentDraft.current;
+    if (current.pending?.operationId) return;
+
+    const pending = current.pending ?? newPending(current);
+    if (!pending) return;
     if (!saveDraft({ ...current, pending })) return;
 
     sending.current = true;

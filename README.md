@@ -6,8 +6,9 @@ Linha de Produtos de Software para restaurantes, em implementação iterativa.
 
 O gateway serve a interface React. A Administração usa as APIs de Configuração
 e Catálogo para persistir funcionalidades, preços e disponibilidade no PostgreSQL.
-O Cliente cria e acompanha retiradas persistidas; o Balcão registra pedidos e
-controla os estados Recebido, Em preparo, Pronto e Concluído.
+O Cliente cria e acompanha retiradas e entregas persistidas; o Balcão registra
+pedidos e controla os estados Recebido, Em preparo, Pronto, Saiu para entrega e
+Concluído. Entregas guarda endereço, taxa fixa e despacho.
 
 ```bash
 cp .env.example .env
@@ -21,7 +22,7 @@ Abra a [Administração](http://localhost:8080/admin) e entre com o usuário
 `admin` e a senha de `MESA_DEMO_ADMIN_PASSWORD` configurada no `.env`.
 O usuário `operator` acessa o [Balcão](http://localhost:8080/balcao) com a senha
 `MESA_DEMO_OPERATOR_PASSWORD`. Abra o [Cliente](http://localhost:8080/cliente)
-em outra sessão para criar uma retirada e acompanhar o andamento.
+em outra sessão para criar uma retirada ou entrega e acompanhar o andamento.
 
 Consulte o [plano](PLAN.md) e o [guia de desenvolvimento](docs/development.md).
 
@@ -32,7 +33,7 @@ uv run --frozen pytest -q tests/integration
 python3 scripts/verify_infrastructure.py
 ```
 
-A jornada de retirada no navegador está em `web/e2e/`. Consulte os comandos e
+As jornadas de retirada e entrega no navegador estão em `web/e2e/`. Consulte os comandos e
 os cuidados com dados de teste em [tests/e2e/README.md](tests/e2e/README.md).
 
 ## Executar o protótipo

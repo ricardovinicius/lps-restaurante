@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, errorMessage, type Configuration } from "../api";
 import { usePolling } from "../hooks/usePolling";
-import { emptyDraft, type PickupDraftStore } from "./draft";
+import { emptyDraft, type OrderDraftStore } from "./draft";
 
 export async function readCatalog() {
   const first = await api.products(false);
@@ -21,7 +21,7 @@ export async function readCatalog() {
   return { revision: first.revision, items };
 }
 
-export function usePickupMenu(store: PickupDraftStore, setFeedback: (message: string) => void) {
+export function useOrderMenu(store: OrderDraftStore, setFeedback: (message: string) => void) {
   const { mounted, currentDraft, saveDraft } = store;
   const [configuration, setConfiguration] = useState<Configuration>();
   const currentConfiguration = useRef(configuration);
@@ -66,4 +66,4 @@ export function usePickupMenu(store: PickupDraftStore, setFeedback: (message: st
   return { configuration, currentConfiguration, configurationSync, catalog, catalogError, loadCatalog };
 }
 
-export type PickupMenu = ReturnType<typeof usePickupMenu>;
+export type OrderMenu = ReturnType<typeof useOrderMenu>;
