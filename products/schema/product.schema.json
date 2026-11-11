@@ -1,0 +1,82 @@
+{
+  "$defs": {
+    "Features": {
+      "additionalProperties": false,
+      "properties": {
+        "catalog": {
+          "const": true,
+          "default": true,
+          "title": "Catalog",
+          "type": "boolean"
+        },
+        "orders": {
+          "const": true,
+          "default": true,
+          "title": "Orders",
+          "type": "boolean"
+        },
+        "pickup": {
+          "title": "Pickup",
+          "type": "boolean"
+        },
+        "delivery": {
+          "title": "Delivery",
+          "type": "boolean"
+        },
+        "tables": {
+          "title": "Tables",
+          "type": "boolean"
+        },
+        "tablet": {
+          "title": "Tablet",
+          "type": "boolean"
+        },
+        "tv": {
+          "title": "Tv",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "pickup",
+        "delivery",
+        "tables",
+        "tablet",
+        "tv"
+      ],
+      "title": "Features",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "const": 1,
+      "title": "Version",
+      "type": "integer"
+    },
+    "name": {
+      "maxLength": 80,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+    },
+    "features": {
+      "$ref": "#/$defs/Features"
+    },
+    "services": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Services",
+      "type": "array"
+    }
+  },
+  "required": [
+    "version",
+    "name",
+    "features",
+    "services"
+  ],
+  "title": "Product",
+  "type": "object"
+}

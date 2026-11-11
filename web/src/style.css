@@ -1,0 +1,62 @@
+#role-nav {
+  margin-top: 32px;
+}
+
+#role-nav a {
+  color: var(--green);
+  display: block;
+  padding: 10px 12px;
+  text-decoration: none;
+  border-radius: 8px;
+}
+
+#role-nav a.active {
+  background: #e8eee5;
+  font-weight: 700;
+}
+
+.staff-bar,
+.actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.staff-bar {
+  justify-content: flex-end;
+  margin-bottom: 18px;
+}
+
+.stacked-form {
+  display: grid;
+  gap: 12px;
+}
+
+.stacked-form label:not(.availability) {
+  display: grid;
+  gap: 6px;
+}
+
+.stacked-form input:not([type="checkbox"]) {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #a5afa7;
+  border-radius: 8px;
+}
+
+.login-form {
+  max-width: 380px;
+}
+
+.pagination {
+  margin-top: 18px;
+}
+
+@media (max-width: 900px) {
+  #role-nav {
+    margin-top: 8px;
+    display: flex;
+    flex-wrap: wrap;
+  }
+}

@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#243e34" />
+    <meta
+      name="description"
+      content="Mesa Fácil: protótipo interativo de uma linha de produtos para alimentação."
+    />
+    <title>Mesa Fácil · Cardápio</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <aside class="sidebar">
+      <a class="brand" href="#" aria-label="Mesa Fácil início"
+        ><span class="brand-mark">m<span>·</span></span
+        ><span>mesa fácil<small>DO PEDIDO AO PRIMEIRO SABOR</small></span></a
+      >
+      <div class="workspace">
+        <span class="store-icon">⌂</span>
+        <div><strong>Quintal da Casa</strong><small>Seu restaurante, conectado</small></div>
+        <span class="online"></span>
+      </div>
+      <div class="nav-label">ESPAÇO DE TRABALHO</div>
+      <nav id="role-nav"></nav>
+      <div class="sidebar-bottom">
+        <div class="demo-badge"><span>◈</span> LABORATÓRIO DE PRODUTO</div>
+        <p>Uma base. Diferentes jeitos<br />de servir bem.</p>
+        <div class="profile">
+          <span>RC</span>
+          <div><strong>Restaurante conceito</strong><small>Ambiente de demonstração</small></div>
+        </div>
+      </div>
+    </aside>
+    <div class="shell">
+      <header>
+        <div class="breadcrumb">Workspace <span>/</span> <b id="crumb">Cardápio</b></div>
+        <div class="header-right">
+          <label class="role-label" for="role-select">Acessar</label
+          ><select id="role-select" aria-label="Área do sistema">
+            <option value="client">Cliente</option>
+            <option value="tablet">Comanda digital</option>
+            <option value="admin">Administração</option>
+            <option value="counter">Balcão</option>
+            <option value="tv">Painel de TV</option>
+          </select>
+          <a class="settings-link" href="?view=admin">⚙ Configurações</a
+          ><span class="demo-pill">Protótipo acadêmico</span><span class="avatar">RC</span>
+        </div>
+      </header>
+      <main>
+        <section class="page-heading">
+          <div>
+            <div class="eyebrow">QUINTAL DA CASA</div>
+            <h1 id="page-title">O que vamos servir hoje?</h1>
+            <p id="page-subtitle">Comida de verdade. Pedidos sem complicação.</p>
+          </div>
+          <span class="open-status"><i></i> Aberto para pedidos</span>
+        </section>
+        <div id="view"></div>
+        <footer>
+          <span>mesa fácil <b>·</b> Feito para servir melhor.</span
+          ><span>Protótipo LPS · Dados locais e serviços simulados</span>
+        </footer>
+      </main>
+    </div>
+    <div id="toast" role="status" aria-live="polite"></div>
+    <script src="app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "name": "restaurante",
+  "features": {
+    "catalog": true,
+    "orders": true,
+    "pickup": false,
+    "delivery": false,
+    "tables": true,
+    "tablet": true,
+    "tv": true
+  },
+  "services": [
+    "configuration",
+    "catalog",
+    "orders",
+    "tables"
+  ]
+}

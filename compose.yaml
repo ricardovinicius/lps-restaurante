@@ -1,0 +1,124 @@
+name: mesa-facil
+services:
+  postgres:
+    image: postgres:17-bookworm
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      CONFIGURATION_DB_PASSWORD: ${CONFIGURATION_DB_PASSWORD:?Set CONFIGURATION_DB_PASSWORD}
+      CATALOG_DB_PASSWORD: ${CATALOG_DB_PASSWORD:?Set CATALOG_DB_PASSWORD}
+      ORDERS_DB_PASSWORD: ${ORDERS_DB_PASSWORD:?Set ORDERS_DB_PASSWORD}
+      DELIVERIES_DB_PASSWORD: ${DELIVERIES_DB_PASSWORD:?Set DELIVERIES_DB_PASSWORD}
+      TABLES_DB_PASSWORD: ${TABLES_DB_PASSWORD:?Set TABLES_DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/postgres/001-databases.sql:/docker-entrypoint-initdb.d/001-databases.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  configuration:
+    build:
+      context: .
+      dockerfile: infra/Dockerfile.service
+      args:
+        SERVICE: configuration
+    environment:
+      MESA_CATALOG_ACCESS_KEY: ${MESA_CATALOG_ACCESS_KEY:?Set MESA_CATALOG_ACCESS_KEY}
+      MESA_DEMO_ADMIN_PASSWORD: ${MESA_DEMO_ADMIN_PASSWORD:-}
+      MESA_DEMO_OPERATOR_PASSWORD: ${MESA_DEMO_OPERATOR_PASSWORD:-}
+      MESA_SECURE_COOKIES: ${MESA_SECURE_COOKIES:-0}
+      MESA_DATABASE_URL: postgresql+psycopg://mesa_configuration:${CONFIGURATION_DB_PASSWORD:?Set CONFIGURATION_DB_PASSWORD}@postgres:5432/mesa_configuration
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=4)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  catalog:
+    build:
+      context: .
+      dockerfile: infra/Dockerfile.service
+      args:
+        SERVICE: catalog
+    environment:
+      MESA_CATALOG_ACCESS_KEY: ${MESA_CATALOG_ACCESS_KEY:?Set MESA_CATALOG_ACCESS_KEY}
+      MESA_CONFIGURATION_URL: http://configuration:8000
+      MESA_DATABASE_URL: postgresql+psycopg://mesa_catalog:${CATALOG_DB_PASSWORD:?Set CATALOG_DB_PASSWORD}@postgres:5432/mesa_catalog
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=4)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  orders:
+    build:
+      context: .
+      dockerfile: infra/Dockerfile.service
+      args:
+        SERVICE: orders
+    environment:
+      MESA_DATABASE_URL: postgresql+psycopg://mesa_orders:${ORDERS_DB_PASSWORD:?Set ORDERS_DB_PASSWORD}@postgres:5432/mesa_orders
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=4)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  deliveries:
+    build:
+      context: .
+      dockerfile: infra/Dockerfile.service
+      args:
+        SERVICE: deliveries
+    environment:
+      MESA_DATABASE_URL: postgresql+psycopg://mesa_deliveries:${DELIVERIES_DB_PASSWORD:?Set DELIVERIES_DB_PASSWORD}@postgres:5432/mesa_deliveries
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=4)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  tables:
+    build:
+      context: .
+      dockerfile: infra/Dockerfile.service
+      args:
+        SERVICE: tables
+    environment:
+      MESA_DATABASE_URL: postgresql+psycopg://mesa_tables:${TABLES_DB_PASSWORD:?Set TABLES_DB_PASSWORD}@postgres:5432/mesa_tables
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=4)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  gateway:
+    build:
+      context: .
+      dockerfile: infra/Dockerfile.gateway
+    ports:
+      - "127.0.0.1:${MESA_HTTP_PORT:-8080}:80"
+    depends_on:
+      configuration:
+        condition: service_healthy
+      catalog:
+        condition: service_healthy
+      orders:
+        condition: service_healthy
+      deliveries:
+        condition: service_healthy
+      tables:
+        condition: service_healthy
+volumes:
+  postgres_data:

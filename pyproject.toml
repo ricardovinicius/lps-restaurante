@@ -1,0 +1,19 @@
+[project]
+name = "mesa-facil"
+version = "0.1.0"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+  "fastapi>=0.115,<1",
+  "pydantic-settings>=2,<3",
+  "sqlalchemy>=2,<3",
+  "psycopg[binary]>=3,<4",
+  "alembic>=1,<2",
+  "uvicorn>=0.34,<1",
+]
+
+[dependency-groups]
+dev = ["pytest>=8,<10", "httpx>=0.28,<1", "jsonschema>=4,<5", "pyyaml>=6,<7"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests/unit"]
+pythonpath = ["packages/mesa_platform/src", "."]

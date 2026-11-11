@@ -1,0 +1,66 @@
+[
+  {
+    "slug": "1",
+    "category": "Burgers",
+    "name": "Burger da Casa",
+    "description": "Blend artesanal, cheddar, alface e nosso molho especial no pão brioche.",
+    "price_cents": 3290,
+    "image_url": "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=640&auto=format&fit=crop&q=80"
+  },
+  {
+    "slug": "2",
+    "category": "Burgers",
+    "name": "Smash Duplo",
+    "description": "Dois smash burgers, queijo derretido e picles. Simples e irresistível.",
+    "price_cents": 3690,
+    "image_url": "https://images.unsplash.com/photo-1550547660-d9450f859349?w=640&auto=format&fit=crop&q=80"
+  },
+  {
+    "slug": "3",
+    "category": "Burgers",
+    "name": "Burger do Jardim",
+    "description": "Hambúrguer de grão-de-bico, folhas frescas e maionese de ervas.",
+    "price_cents": 2990,
+    "image_url": "https://images.unsplash.com/photo-1520072959219-c595dc870360?w=640&auto=format&fit=crop&q=80"
+  },
+  {
+    "slug": "4",
+    "category": "Porções",
+    "name": "Batata da Casa",
+    "description": "Douradinha, crocante e finalizada com alecrim e sal da casa.",
+    "price_cents": 1990,
+    "image_url": "https://images.unsplash.com/photo-1573080496219-bb080dd4f877?w=640&auto=format&fit=crop&q=80"
+  },
+  {
+    "slug": "5",
+    "category": "Porções",
+    "name": "Onion Rings",
+    "description": "Anéis de cebola empanados, acompanhados de molho da casa.",
+    "price_cents": 2290,
+    "image_url": "https://images.unsplash.com/photo-1639024471283-03518883512d?w=640&auto=format&fit=crop&q=80"
+  },
+  {
+    "slug": "6",
+    "category": "Bebidas",
+    "name": "Limonada fresca",
+    "description": "Limão espremido na hora, gelo e um toque de hortelã. 400 ml.",
+    "price_cents": 1090,
+    "image_url": "https://images.unsplash.com/photo-1513558161293-cdaf765edfd7?w=640&auto=format&fit=crop&q=80"
+  },
+  {
+    "slug": "7",
+    "category": "Bebidas",
+    "name": "Chá gelado da Casa",
+    "description": "Chá artesanal com limão e especiarias, servido bem gelado. 400 ml.",
+    "price_cents": 990,
+    "image_url": "https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=640&auto=format&fit=crop&q=80"
+  },
+  {
+    "slug": "8",
+    "category": "Sobremesas",
+    "name": "Brownie quentinho",
+    "description": "Chocolate intenso, casquinha crocante e um final feliz para o pedido.",
+    "price_cents": 1690,
+    "image_url": "https://images.unsplash.com/photo-1606313564200-e75d5e30476c?w=640&auto=format&fit=crop&q=80"
+  }
+]

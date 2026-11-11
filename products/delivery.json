@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "name": "delivery",
+  "features": {
+    "catalog": true,
+    "orders": true,
+    "pickup": false,
+    "delivery": true,
+    "tables": false,
+    "tablet": false,
+    "tv": false
+  },
+  "services": [
+    "configuration",
+    "catalog",
+    "orders",
+    "deliveries"
+  ]
+}

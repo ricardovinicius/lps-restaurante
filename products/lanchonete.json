@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "name": "lanchonete",
+  "features": {
+    "catalog": true,
+    "orders": true,
+    "pickup": true,
+    "delivery": false,
+    "tables": false,
+    "tablet": false,
+    "tv": true
+  },
+  "services": [
+    "configuration",
+    "catalog",
+    "orders"
+  ]
+}

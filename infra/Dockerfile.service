@@ -1,0 +1,16 @@
+FROM python:3.13-slim
+
+WORKDIR /app
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+COPY packages/mesa_platform/src/mesa_platform ./mesa_platform
+COPY services ./services
+COPY products ./products
+COPY infra/service-entrypoint.sh /app/service-entrypoint.sh
+RUN useradd --uid 10001 --create-home mesa
+USER mesa
+
+ARG SERVICE
+ENV MESA_SERVICE=${SERVICE}
+EXPOSE 8000
+CMD ["sh", "/app/service-entrypoint.sh"]
