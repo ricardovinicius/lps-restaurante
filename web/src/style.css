@@ -185,3 +185,40 @@ button:disabled {
     flex-wrap: wrap;
   }
 }
+
+.administrative-summary {
+  margin-bottom: 32px;
+}
+
+.summary-sources {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 20px;
+}
+
+.summary-sources .stats {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 0;
+}
+
+body[data-role="tv"] .sync-status {
+  color: #d6dfd3;
+}
+
+body[data-role="tv"] .sync-status[role="alert"] {
+  padding: 20px;
+  background: #223b30;
+  border: 1px solid #a4b8a8;
+  border-radius: 12px;
+}
+
+.tv-overflow {
+  margin-top: 20px;
+  font-weight: 700;
+}
+
+@media (max-width: 900px) {
+  .summary-sources {
+    grid-template-columns: 1fr;
+  }
+}

@@ -30,6 +30,11 @@ e iniciar outra identificação, preservando a operação anterior.
 Listas carregam os itens em lote. O acompanhamento atualiza uma página de pedidos
 ativos; o histórico concluído é paginado e consultado sob demanda.
 
+`GET /v1/tv` é público com a feature TV ativa e retorna só números, modalidade e
+mesa de pedidos em preparo/prontos. Totais e páginas vêm da mesma instrução SQL;
+Mesas e Entregas não são consultados. `GET /v1/summary` exige administrador e
+agrega andamento e valor histórico dos concluídos, incluindo taxas.
+
 Na raiz, com `MESA_DATABASE_URL` configurada:
 
 ```bash

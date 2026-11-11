@@ -10,6 +10,8 @@ O Cliente cria e acompanha retiradas, entregas e pedidos de mesa; o Balcão regi
 pedidos e controla os estados Recebido, Em preparo, Pronto, Saiu para entrega e
 Concluído. Entregas guarda endereço, taxa fixa e despacho. Mesas valida as mesas e
 vincula tablets à Comanda digital, que envia rodadas e mostra o histórico “Já pedi”.
+A TV pública mostra números em preparo e prontos, e a Administração acompanha
+pedidos em andamento, valor dos concluídos e disponibilidade do catálogo.
 
 ```bash
 cp .env.example .env
@@ -34,7 +36,7 @@ uv run --frozen pytest -q tests/integration
 python3 scripts/verify_infrastructure.py
 ```
 
-As jornadas de retirada, entrega, mesa e Comanda no navegador estão em `web/e2e/`. Consulte os comandos e
+As jornadas de retirada, entrega, mesa, Comanda, TV e sincronização estão em `web/e2e/`. Consulte os comandos e
 os cuidados com dados de teste em [tests/e2e/README.md](tests/e2e/README.md).
 
 ## Executar o protótipo

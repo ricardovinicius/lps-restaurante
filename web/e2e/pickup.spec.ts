@@ -99,7 +99,7 @@ test("resposta de uma tela anterior não sobrescreve o carrinho atual", async ({
   const delayed = new Promise<void>((resolve) => { release = resolve; });
   let holding = true;
   let waiting = 0;
-  await page.route("**/api/configuration/v1/configuration", async (route) => {
+  await page.route("**/api/catalog/v1/products?*", async (route) => {
     if (!holding) return route.continue();
     const response = await route.fetch();
     waiting += 1;
@@ -107,7 +107,7 @@ test("resposta de uma tela anterior não sobrescreve o carrinho atual", async ({
     await route.fulfill({ response });
   });
   await page.goto("/cliente");
-  await expect.poll(() => waiting).toBeGreaterThanOrEqual(2);
+  await expect.poll(() => waiting).toBe(1);
   await page.getByRole("link", { name: "Administração", exact: true }).click();
   holding = false;
   await page.getByRole("link", { name: "Cardápio", exact: true }).click();

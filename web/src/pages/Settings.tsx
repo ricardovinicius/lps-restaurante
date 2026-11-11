@@ -1,6 +1,8 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { api, ApiError, errorMessage, type Configuration, type Features, type Preset } from "../api";
 import { Load, PageHeading } from "../components";
+import { useConfiguration } from "../configuration/ConfigurationProvider";
+import { Synchronization } from "../components/orders/Synchronization";
 
 const groups = [
   { title: "Modalidades de atendimento", options: [
@@ -22,20 +24,20 @@ function sameFeatures(left: Features, right: Features) {
   return Object.keys(left).every((key) => left[key as keyof Features] === right[key as keyof Features]);
 }
 
-async function readSettings() {
-  return Promise.all([api.configuration(), api.presets()]);
-}
-
 type SettingsAccess = { csrf: string; onSaved: (value: Configuration) => void };
 
 export function Settings({ csrf, onSaved }: SettingsAccess) {
+  const sync = useConfiguration();
+  const saved = sync.configuration;
+
   return <>
     <PageHeading title="Seu negócio, do seu jeito.">
       <p>Escolha as funcionalidades da sua operação.</p>
     </PageHeading>
-    <Load read={readSettings}>
-      {([saved, presets]) => <SettingsForm initial={saved} presets={presets} csrf={csrf} onSaved={onSaved} />}
-    </Load>
+    <Synchronization error={sync.error} syncedAt={sync.syncedAt} />
+    {saved ? <Load read={api.presets}>
+      {(presets) => <SettingsForm initial={saved} presets={presets} csrf={csrf} onSaved={onSaved} />}
+    </Load> : !sync.error && <p role="status">Carregando configuração…</p>}
   </>;
 }
 
@@ -49,8 +51,24 @@ function SettingsForm({ initial, presets, csrf, onSaved }: SettingsAccess & {
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [conflict, setConflict] = useState(false);
+  const { configuration, reload } = useConfiguration();
 
   const dirty = !sameFeatures(saved.features, draft);
+
+  useEffect(() => {
+    if (!configuration || configuration.revision <= saved.revision || busy) return;
+
+    if (dirty) {
+      setConflict(true);
+      setFeedback("Outra sessão salvou uma alteração. Atualize a versão salva para revisar seu rascunho.");
+    } else {
+      setSaved(configuration);
+      setDraft(configuration.features);
+      setConflict(false);
+      setNotice("A configuração salva foi atualizada por outra sessão.");
+    }
+  }, [configuration, saved.revision, dirty, busy]);
+
   const errors = [];
   if (!draft.pickup && !draft.delivery && !draft.tables) errors.push("Selecione pelo menos uma modalidade de atendimento.");
   if (draft.tablet && !draft.tables) errors.push("Comanda digital exige atendimento em mesa.");
@@ -86,7 +104,7 @@ function SettingsForm({ initial, presets, csrf, onSaved }: SettingsAccess & {
     setBusy(true);
     setFeedback("");
     try {
-      const updated = await api.configuration();
+      const updated = await reload();
       setSaved(updated);
       onSaved(updated);
       setConflict(false);

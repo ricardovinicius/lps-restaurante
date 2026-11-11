@@ -66,7 +66,8 @@ export function Ordering({ csrf, staffUsername, onCreated }: OrderingProps) {
     </p>}
     <div className="menu-layout ordering-layout">
       <MenuProducts
-        catalog={catalog} catalogError={ordering.catalogError} onReload={() => void ordering.loadCatalog()}
+        catalog={catalog} catalogError={ordering.catalogError} syncedAt={ordering.catalogSyncedAt}
+        onReload={() => void ordering.loadCatalog()}
         items={draft.items} locked={locked} onAdd={(product) => ordering.changeQuantity(product, 1)}
       />
       <aside className="cart" aria-label="Seu pedido">

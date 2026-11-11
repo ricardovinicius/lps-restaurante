@@ -6,7 +6,8 @@ O ambiente inclui os cinco serviços FastAPI com bancos e migrações independen
 As APIs de Configuração, Acesso e Catálogo atendem o frontend React pelo gateway.
 Retirada, entrega, fila do Balcão e acompanhamento usam Pedidos com persistência,
 idempotência e recuperação; Entregas guarda endereço, taxa e despacho. Mesas valida pedidos
-de mesa e as credenciais da Comanda digital. TV e resumo permanecem nas próximas etapas.
+de mesa e as credenciais da Comanda digital. A TV pública e os resumos administrativos
+usam projeções de leitura, com configuração compartilhada e atualização periódica.
 
 `/health/live` informa que o processo responde. `/health/ready` exige conexão ao
 banco/usuário do serviço e revisão Alembic atual; não significa que os fluxos de
@@ -253,6 +254,29 @@ total do histórico, bloqueio por features e mesa indisponível, recibo perdido 
 reinício de Pedidos, conflito de `operation_id` entre mesas e conclusão de uma rodada
 depois de a credencial expirar.
 
+## TV, resumo e sincronização
+
+A TV em `/tv` exibe até nove números por coluna e informa o excedente a partir
+do total calculado no servidor. Números além desse limite não aparecem nesta versão;
+a demonstração deve respeitar essa capacidade. Rotação automática permanece P1.
+Pedidos já aceitos continuam no painel quando sua modalidade é desabilitada;
+desabilitar TV ou perder a conexão remove os números até nova leitura autorizada.
+
+O resumo em `/admin` conta todo o histórico preservado, sem filtro por período.
+Valor dos concluídos inclui taxas e não representa receita recebida. Falhas de
+Catálogo não apagam os indicadores de Pedidos; cada fonte mostra sua sincronização.
+
+Configuração tem um único polling por aplicação React. Alterações reiniciam
+carrinhos não enviados com aviso; envios pendentes preservam payload e chave.
+Rascunhos administrativos são preservados e exigem revisão da nova versão salva.
+O cardápio consulta sua revisão a cada três segundos e exige revisão explícita
+do carrinho quando preços ou disponibilidade dos itens mudarem.
+
+Depois de recriar os volumes de demonstração com `docker compose down -v`, recarregue
+as abas abertas e autentique/provisione novamente quando necessário. A revisão da
+configuração reinicia no novo banco; o frontend mantém a proteção contra revisões
+antigas durante a execução normal e não detecta automaticamente a troca do banco.
+
 ## Verificação real da infraestrutura
 
 ```bash
@@ -282,7 +306,7 @@ nessa suíte; os testes ASGI unitários continuam usando um substituto de conex�
 
 ## Evidências e limites
 
-- 157 testes Python unitários, incluindo features, entradas, endereço, despacho e classificação de erros internos.
+- 168 testes Python unitários, incluindo features, entradas, endereço, despacho e classificação de erros internos.
 - Suíte de infraestrutura executada com PostgreSQL 17, cinco processos FastAPI e Nginx.
 - Docker inicialmente indisponível na iteração 1, acessível e validado na iteração 2.
 - O TestClient precisa de execução fora da restrição de sockets do sandbox.
@@ -301,12 +325,45 @@ nessa suíte; os testes ASGI unitários continuam usando um substituto de conex�
   PostgreSQL 17 e dez jornadas Playwright no Chromium, três delas de entrega.
 - Iteração 6: 157 testes unitários, 27 de integração (sete de Mesas e Comanda) e
   17 jornadas Playwright, sete delas de mesa e Comanda.
-- TV, resumo e suas jornadas permanecem nas próximas etapas.
+- Iteração 7: três integrações novas de projeções com PostgreSQL 17 e 21 jornadas
+  Playwright validadas, incluindo quatro de TV e sincronização. Resumos foram
+  conferidos com mais de uma página de pedidos; a projeção pública foi verificada
+  com as três modalidades, cursores, permissões e serviços opcionais parados.
+- A TV foi inspecionada em 1920×1080, com nove números e contador de excedentes.
+- A revisão pontual repetiu quatro testes de integração e quatro jornadas afetadas,
+  cobrindo a leitura compartilhada de features, falhas sem dados visíveis e o singular
+  na TV. Os pedidos extras de agregação são concluídos; sua limpeza é registrada
+  antes da inserção e também executa se o setup falhar.
+
+### Medição da propagação — T49
+
+As jornadas gravam `propagation.json` em seu diretório de resultados e o anexam ao
+relatório. A execução registrada em [stage7-propagation.json](evidence/stage7-propagation.json)
+usou Linux x64, Intel i7-1165G7, oito processadores lógicos, aproximadamente 15 GiB
+de RAM, Chromium 157.0.8103.38 e Docker Compose com PostgreSQL 17. O catálogo tinha
+oito produtos e o seed de Mesas, 12 registros. A jornada começou sem pedidos e criou
+três retiradas; configuração foi medida depois de concluí-las.
+
+| Evento e destino | Tempos observados (ms) | Meta |
+| --- | --- | --- |
+| Criação: Cliente → Balcão | 1795, 271, 235 | ≤5000 |
+| Transição: Balcão → TV | 837, 851, 856 | ≤5000 |
+| Configuração: Administração → TV | 3357, 2829, 2828 | ≤5000 |
+| Configuração: Administração → carrinho do Cliente | 1903, 1857, 1852 | ≤5000 |
+| Configuração: Administração → navegação do Cliente | 1842, 1862, 1813 | ≤5000 |
+
+Tempos medidos com relógio monotônico desde o início da ação até a mudança visível
+em outro contexto de navegador. A configuração é observada simultaneamente nos três
+destinos, partindo do mesmo instante inicial a cada mudança. Os contextos têm cookies
+e armazenamento separados.
+A captura da TV com excedentes usa dados controlados na resposta do navegador;
+estados, totais e privacidade da API foram verificados separadamente em PostgreSQL.
+Os resultados são do ambiente e volume descritos, não uma medição de carga/p95.
 
 ## Próxima iteração
 
-Etapa 7, T43–T49. Painel de TV, resumo administrativo, sincronização entre áreas
-e medição da propagação.
+Etapa 8, T50–T58. Consolidação dos testes e da documentação, derivação dos produtos,
+ensaio de carga com 20 clientes e roteiro de apresentação em ambiente limpo.
 
 ## Referências de implementação
 

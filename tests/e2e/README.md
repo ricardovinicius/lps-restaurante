@@ -3,8 +3,20 @@
 As jornadas de retirada estão em `web/e2e/pickup.spec.ts`, com Playwright sobre
 as APIs e o PostgreSQL reais. Cobrem Cliente e Balcão em contextos independentes,
 persistência do carrinho, estados, resposta perdida, reenvio sem duplicidade,
-revisão de preços e respostas atrasadas após navegação. A TV será adicionada na
-próxima etapa.
+revisão de preços e respostas atrasadas após navegação.
+
+`web/e2e/synchronization.spec.ts` cobre TV, resumos, propagação entre sessões,
+rascunhos administrativos, atualização de preços e falhas de polling. As medições
+de criação, transição e configuração são anexadas como `propagation.json` aos
+resultados Playwright. A configuração é cronometrada em paralelo na TV, no reinício
+do carrinho e na navegação do Cliente, com o mesmo instante inicial. Cada registro contém origem, destino, duração em milissegundos
+e limite de 5000 ms; falhas de medição também deixam evidências. O teste da TV anexa
+uma captura em 1920×1080. Para preservar e inspecionar os anexos no relatório HTML:
+
+```bash
+MESA_BASE_URL=http://127.0.0.1:8081 npm --prefix web run test:e2e -- --reporter=html
+npm --prefix web exec -- playwright show-report
+```
 
 `web/e2e/tables.spec.ts` cobre o pedido de mesa pelo Cliente concluído no Balcão,
 o vínculo de tablet pelo operador com duas rodadas e o “Já pedi” com o total de todas

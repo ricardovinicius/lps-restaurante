@@ -4,9 +4,10 @@ import { errorMessage } from "../api";
 export function usePolling<T>(read: () => Promise<T>, interval: number | null = 3000, refreshKey?: number) {
   const [value, setValue] = useState<T>();
   const [error, setError] = useState("");
+  const [failure, setFailure] = useState<unknown>();
   const [syncedAt, setSyncedAt] = useState<Date>();
   const [attempt, retry] = useState(0);
-  const inFlight = useRef(false);
+  const inFlight = useRef<Promise<T> | undefined>(undefined);
 
   useEffect(() => {
     let active = true;
@@ -14,22 +15,28 @@ export function usePolling<T>(read: () => Promise<T>, interval: number | null = 
 
     async function poll() {
       if (inFlight.current) {
-        timer = setTimeout(poll, 3000);
-        return;
+        await inFlight.current.catch(() => undefined);
       }
-      inFlight.current = true;
+      if (!active) return;
+
+      const pending = Promise.resolve().then(read);
+      inFlight.current = pending;
 
       try {
-        const result = await read();
+        const result = await pending;
         if (active) {
           setValue(result);
           setError("");
+          setFailure(undefined);
           setSyncedAt(new Date());
         }
       } catch (error) {
-        if (active) setError(errorMessage(error));
+        if (active) {
+          setError(errorMessage(error));
+          setFailure(error);
+        }
       } finally {
-        inFlight.current = false;
+        if (inFlight.current === pending) inFlight.current = undefined;
         if (active && interval !== null) timer = setTimeout(poll, interval);
       }
     }
@@ -43,6 +50,5 @@ export function usePolling<T>(read: () => Promise<T>, interval: number | null = 
 
   const refresh = useCallback(() => retry((value) => value + 1), []);
 
-  return { value, error, syncedAt, refresh };
+  return { value, error, failure, syncedAt, refresh };
 }
-

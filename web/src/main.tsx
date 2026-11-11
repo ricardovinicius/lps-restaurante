@@ -1,8 +1,9 @@
-import { createContext, useContext, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Link, NavLink, Outlet, Route, Routes } from "react-router";
-import { api, type Configuration } from "./api";
-import { Load, PageHeading } from "./components";
+import type { Configuration } from "./api";
+import { PageHeading } from "./components";
+import { ConfigurationProvider, useConfiguration } from "./configuration/ConfigurationProvider";
+import { AdministrativeSummary } from "./components/admin/AdministrativeSummary";
 import { Dispatches } from "./components/orders/Dispatches";
 import { Catalog } from "./pages/Catalog";
 import { Counter } from "./pages/Counter";
@@ -11,11 +12,10 @@ import { Operations } from "./pages/Operations";
 import { Settings } from "./pages/Settings";
 import { Tablet } from "./pages/Tablet";
 import { TabletSetup } from "./pages/TabletSetup";
+import { TV } from "./pages/TV";
 import { AdminLayout, LegacyEntry, Staff, useStaff } from "./pages/Staff";
 import "../../prototypes/mesa-facil/dist/style.css";
 import "./style.css";
-
-const ConfigurationChanged = createContext<(value: Configuration) => void>(() => {});
 
 function OptionalAreas({ features }: Pick<Configuration, "features">) {
   return <>
@@ -25,9 +25,9 @@ function OptionalAreas({ features }: Pick<Configuration, "features">) {
 }
 
 function Layout() {
-  const [configuration, setConfiguration] = useState<Configuration>();
+  const { configuration } = useConfiguration();
 
-  return <ConfigurationChanged.Provider value={setConfiguration}>
+  return <>
     <aside className="sidebar">
       <Link className="brand" to="/cliente">
         <span aria-hidden="true" className="brand-mark">m<span>·</span></span>
@@ -37,37 +37,27 @@ function Layout() {
         <NavLink to="/cliente">Cardápio</NavLink>
         <NavLink to="/admin">Administração</NavLink>
         <NavLink to="/balcao">Balcão</NavLink>
-        {configuration
-          ? <OptionalAreas features={configuration.features} />
-          : <Load read={api.configuration}>{({ features }) => <OptionalAreas features={features} />}</Load>}
+        {configuration && <OptionalAreas features={configuration.features} />}
       </nav>
     </aside>
     <div className="shell"><main><Outlet /></main></div>
-  </ConfigurationChanged.Provider>;
+  </>;
 }
 
 function SettingsRoute() {
   const { csrf_token } = useStaff();
-  const onSaved = useContext(ConfigurationChanged);
+  const { accept } = useConfiguration();
 
-  return <Settings csrf={csrf_token} onSaved={onSaved} />;
+  return <><AdministrativeSummary /><Settings csrf={csrf_token} onSaved={accept} /></>;
 }
 
 function CatalogRoute() {
   return <Catalog csrf={useStaff().csrf_token} />;
 }
 
-function PendingArea({ feature, title }: { feature: "tv"; title: string }) {
-  return <>
-    <PageHeading title={title} />
-    <Load read={api.configuration}>{({ features }) => (
-      <p>{features[feature] ? "Esta área será conectada em uma próxima etapa." : "Este recurso está desabilitado."}</p>
-    )}</Load>
-  </>;
-}
-
 createRoot(document.getElementById("root")!).render(
   <BrowserRouter>
+    <ConfigurationProvider>
     <Routes>
       <Route element={<Layout />}>
         <Route index element={<LegacyEntry />} />
@@ -86,9 +76,10 @@ createRoot(document.getElementById("root")!).render(
         <Route path="comanda/configurar" element={<Staff role="operator" />}>
           <Route index element={<TabletSetup />} />
         </Route>
-        <Route path="tv" element={<PendingArea feature="tv" title="Painel de TV" />} />
+        <Route path="tv" element={<TV />} />
         <Route path="*" element={<PageHeading title="Página não encontrada"><Link to="/cliente">Abrir cardápio</Link></PageHeading>} />
       </Route>
     </Routes>
+    </ConfigurationProvider>
   </BrowserRouter>,
 );

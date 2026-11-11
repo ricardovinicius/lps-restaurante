@@ -96,7 +96,8 @@ function TabletSession({ context, onLost }: { context: TableContext; onLost: () 
         </p>}
         <div className="menu-layout ordering-layout">
           <MenuProducts
-            catalog={ordering.catalog} catalogError={ordering.catalogError} onReload={() => void ordering.loadCatalog()}
+            catalog={ordering.catalog} catalogError={ordering.catalogError} syncedAt={ordering.catalogSyncedAt}
+            onReload={() => void ordering.loadCatalog()}
             items={draft.items} locked={locked} onAdd={(product) => ordering.changeQuantity(product, 1)}
           />
           <aside className="cart" aria-label="Comanda da mesa">

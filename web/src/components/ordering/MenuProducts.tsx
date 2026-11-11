@@ -2,17 +2,19 @@ import { useState } from "react";
 import type { Product } from "../../api";
 import { currency } from "../../ordering/format";
 import type { CartItem } from "../../ordering/draft";
+import { Synchronization } from "../orders/Synchronization";
 
 type MenuProductsProps = {
   catalog?: { items: Product[] };
   catalogError: string;
+  syncedAt?: Date;
   onReload: () => void;
   items: CartItem[];
   locked: boolean;
   onAdd: (product: Product) => void;
 };
 
-export function MenuProducts({ catalog, catalogError, onReload, items, locked, onAdd }: MenuProductsProps) {
+export function MenuProducts({ catalog, catalogError, syncedAt, onReload, items, locked, onAdd }: MenuProductsProps) {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("");
   const term = search.trim().toLocaleLowerCase("pt-BR");
@@ -37,7 +39,7 @@ export function MenuProducts({ catalog, catalogError, onReload, items, locked, o
       />
     </div>
     {catalogError && <div className="info-card">
-      <p role="alert">{catalogError}</p>
+      <Synchronization error={catalogError} syncedAt={syncedAt} />
       <button className="secondary" onClick={onReload}>Recarregar cardápio</button>
     </div>}
     {!catalog && !catalogError && <p role="status">Carregando cardápio…</p>}

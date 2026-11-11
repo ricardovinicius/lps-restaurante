@@ -2,7 +2,8 @@
 
 As rotas de Configuração, Acesso, Catálogo, retirada, entrega, Mesas e Comanda
 estão implementadas, incluindo admissões, cotações, endereços, despachos, validações
-de mesa e credenciais de tablet internas. TV e resumo descrevem as etapas seguintes. Cada serviço gera OpenAPI a partir de seus modelos e rotas em `/openapi.json`.
+de mesa e credenciais de tablet internas, projeção pública da TV e resumos administrativos.
+Cada serviço gera OpenAPI a partir de seus modelos e rotas em `/openapi.json`.
 Os contratos de saúde implementados estão em `docs/contracts/health-*.json`.
 
 ## Convenções
@@ -15,7 +16,7 @@ valores inválidos são substituídos, não registrados literalmente.
 Listas: `limit` 1–100 (padrão 20), cursor opaco validado e filtros explícitos;
 resposta `{items: [...], next_cursor: string|null}`. Ordenação estável por
 `(created_at, id)` para pedidos/histórico e por `(id)` para catálogo/mesas.
-A TV retorna duas listas limitadas com cursores, sem truncamento silencioso.
+A TV retorna duas listas limitadas com cursores e total por estado, sem truncamento silencioso.
 
 Erros de negócio: `{error: {code, message, details}, request_id}`. Não expor senha,
 endereço, SQL ou stack trace. 401 sessão ausente/inválida; 403 sem permissão ou
@@ -55,6 +56,7 @@ salvar é uma operação separada. Administrador e operador não são equivalent
 | --- | --- | --- | --- |
 | GET /v1/products | Público | q, category_id, cursor, limit | revision e página de produtos disponíveis |
 | GET /v1/admin/products | Admin | cursor, limit | revision e página incluindo indisponíveis |
+| GET /v1/summary | Admin | — | available_products, total_products |
 | PATCH /v1/products/{id} | Admin + CSRF | expected_revision, price_cents, available | `{product, revision}` |
 | POST /internal/v1/quotes/{operation_id} | Pedidos | expected_revision, items[{product_id, quantity, expected_unit_price_cents}] | Snapshot imutável e total; 409 catálogo/preço alterado |
 
@@ -80,8 +82,24 @@ Cotação aceita é persistida por operation_id; replay com payload distinto ret
 | GET /v1/dispatches | Admin ou operador | state?, cursor, limit | Saídas para entrega; padrão needs_attention |
 | POST /v1/dispatches/{id}/resume | Admin + CSRF | — | 202 retoma needs_attention, com auditoria; 409 nos demais estados |
 | GET /v1/table-orders | Contexto tablet | cursor, limit | `{table, items, next_cursor, historical_total_cents, order_count}` da mesa da credencial, mais recentes primeiro |
-| GET /v1/tv | Público com feature ativa | limit, preparing_cursor?, ready_cursor? | Páginas por estado: number, fulfillment, table_number |
+| GET /v1/tv | Público com feature ativa | limit, preparing_cursor?, ready_cursor? | preparing e ready: items[{number, fulfillment, table_number}], total, next_cursor |
 | GET /v1/summary | Admin | — | active_orders, completed_order_value_cents |
+
+TV: somente estados `preparing` e `ready`, independentemente das features atuais
+das modalidades de pedidos já aceitos. Recebidos, concluídos, despachados e tentativas
+incompletas não aparecem. Páginas e totais vêm de uma única instrução SQL, ordenadas
+por `(created_at, id)`. `total` conta todo o estado, mesmo nas páginas seguintes ou
+vazias. A API não retorna nomes, endereços, itens, valores ou IDs dos pedidos.
+O cookie de administrador não amplia a projeção. A feature `tv` é consultada em
+Configuração a cada leitura: 403 `feature_disabled` quando desligada, 503 se não
+for possível verificá-la. Respostas usam `Cache-Control: no-store`.
+
+Resumo de Pedidos: `active_orders` conta confirmados em `received`, `preparing`,
+`ready` ou `dispatched`; `completed_order_value_cents` soma `total_cents` dos
+concluídos, incluindo taxas e todo o histórico preservado. Não representa receita
+recebida. O resumo de Catálogo conta disponíveis e total de produtos. Ambos exigem
+administrador, agregam todo o banco independentemente de paginação, retornam zero
+quando não há registros e usam `Cache-Control: no-store`.
 
 Payload de criação:
 

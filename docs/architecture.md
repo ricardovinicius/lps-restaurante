@@ -1,7 +1,7 @@
 # Arquitetura do Mesa Fácil
 
 Status: Configuração, Acesso, Catálogo, retirada, entrega, Mesas e Comanda estão
-implementados. TV e resumo permanecem nas próximas etapas dos
+implementados, incluindo projeção pública da TV e resumos administrativos nos
 [contratos](contracts/http.md). O protótipo permanece independente.
 
 ## Organização
@@ -22,6 +22,12 @@ modelos ORM, tabelas e regras de negócio pertencem ao serviço responsável.
 Administração, Cliente, Balcão, Comanda e TV são rotas de um frontend React. Nginx
 serve esse frontend e encaminha somente APIs públicas. Portas de serviços e banco
 não são publicadas no host pelo Compose. `/internal/v1` nunca é exposto no gateway.
+
+Um provider React acompanha a configuração salva a cada três segundos e compartilha
+revisão, features e estado de sincronização. Respostas antigas não substituem revisões
+mais recentes; rascunhos e efeitos sobre carrinhos permanecem nos seus módulos.
+A TV usa uma única instrução SQL para páginas e totais das duas colunas, consultando
+apenas Pedidos. Os resumos agregam dados no banco de cada serviço, sem acesso cruzado.
 
 ```mermaid
 flowchart LR

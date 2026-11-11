@@ -1,0 +1,145 @@
+{
+  "environment": {
+    "cpu": "11th Gen Intel(R) Core(TM) i7-1165G7 @ 2.80GHz",
+    "logical_cores": 8,
+    "memory_bytes": 15950135296,
+    "platform": "linux",
+    "architecture": "x64"
+  },
+  "browser": "157.0.8103.38",
+  "execution": "Docker Compose isolado, PostgreSQL 17, cinco serviços FastAPI e Nginx; Playwright com um worker.",
+  "dataset": "Seeds de 8 produtos e 12 mesas; banco de pedidos vazio ao iniciar a jornada medida; 3 retiradas criadas e concluídas antes da medição de configuração.",
+  "limit_ms": 5000,
+  "runs": [
+    {
+      "observed_at": "2026-11-11T13:20:16.775Z",
+      "measurements": [
+        {
+          "event": "configuration",
+          "source": "Administração",
+          "target": "Navegação do Cliente",
+          "elapsed_ms": 1842,
+          "limit_ms": 5000,
+          "passed": true
+        },
+        {
+          "event": "configuration",
+          "source": "Administração",
+          "target": "Carrinho do Cliente",
+          "elapsed_ms": 1903,
+          "limit_ms": 5000,
+          "passed": true
+        },
+        {
+          "event": "configuration",
+          "source": "Administração",
+          "target": "TV",
+          "elapsed_ms": 3357,
+          "limit_ms": 5000,
+          "passed": true
+        },
+        {
+          "event": "configuration",
+          "source": "Administração",
+          "target": "Carrinho do Cliente",
+          "elapsed_ms": 1857,
+          "limit_ms": 5000,
+          "passed": true
+        },
+        {
+          "event": "configuration",
+          "source": "Administração",
+          "target": "Navegação do Cliente",
+          "elapsed_ms": 1862,
+          "limit_ms": 5000,
+          "passed": true
+        },
+        {
+          "event": "configuration",
+          "source": "Administração",
+          "target": "TV",
+          "elapsed_ms": 2829,
+          "limit_ms": 5000,
+          "passed": true
+        },
+        {
+          "event": "configuration",
+          "source": "Administração",
+          "target": "Navegação do Cliente",
+          "elapsed_ms": 1813,
+          "limit_ms": 5000,
+          "passed": true
+        },
+        {
+          "event": "configuration",
+          "source": "Administração",
+          "target": "Carrinho do Cliente",
+          "elapsed_ms": 1852,
+          "limit_ms": 5000,
+          "passed": true
+        },
+        {
+          "event": "configuration",
+          "source": "Administração",
+          "target": "TV",
+          "elapsed_ms": 2828,
+          "limit_ms": 5000,
+          "passed": true
+        }
+      ]
+    },
+    {
+      "observed_at": "2026-11-11T13:20:02.634Z",
+      "measurements": [
+        {
+          "event": "creation",
+          "source": "Cliente",
+          "target": "Balcão",
+          "elapsed_ms": 1795,
+          "limit_ms": 5000,
+          "passed": true
+        },
+        {
+          "event": "transition",
+          "source": "Balcão",
+          "target": "TV",
+          "elapsed_ms": 837,
+          "limit_ms": 5000,
+          "passed": true
+        },
+        {
+          "event": "creation",
+          "source": "Cliente",
+          "target": "Balcão",
+          "elapsed_ms": 271,
+          "limit_ms": 5000,
+          "passed": true
+        },
+        {
+          "event": "transition",
+          "source": "Balcão",
+          "target": "TV",
+          "elapsed_ms": 851,
+          "limit_ms": 5000,
+          "passed": true
+        },
+        {
+          "event": "creation",
+          "source": "Cliente",
+          "target": "Balcão",
+          "elapsed_ms": 235,
+          "limit_ms": 5000,
+          "passed": true
+        },
+        {
+          "event": "transition",
+          "source": "Balcão",
+          "target": "TV",
+          "elapsed_ms": 856,
+          "limit_ms": 5000,
+          "passed": true
+        }
+      ]
+    }
+  ]
+}

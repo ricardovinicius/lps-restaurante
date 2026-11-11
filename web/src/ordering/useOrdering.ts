@@ -95,7 +95,7 @@ export function useOrdering(
   return {
     draft, feedback, storageError, busy,
     configuration, configurationSync: menu.configurationSync,
-    catalog: menu.catalog, catalogError: menu.catalogError, loadCatalog,
+    catalog: menu.catalog, catalogError: menu.catalogError, catalogSyncedAt: menu.catalogSyncedAt, loadCatalog,
     fulfillments, fulfillment, address, subtotal, fee, total,
     changeQuantity, changeName, changeAddress, changeFulfillment, changeTable, review,
     submit: checkout.submit,

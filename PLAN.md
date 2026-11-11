@@ -143,6 +143,34 @@ Passaram 157 testes unitários, 27 de integração com PostgreSQL 17 (sete de Me
 17 jornadas Playwright no Chromium (sete de mesa e Comanda). O build React passou.
 Próxima etapa: TV, resumo e sincronização, T43–T49.
 
+### Iteração 7 — TV, resumo e sincronização
+
+T43–T49 concluídas. A TV pública recebe somente números, modalidade e mesa dos
+pedidos em preparo/prontos. Páginas e totais das duas colunas vêm de uma única
+instrução SQL; o painel mostra nove por coluna e informa excedentes. Rotação
+automática permanece P1. Features de modalidades não ocultam pedidos já aceitos;
+a feature TV é validada na API em toda leitura e falhas removem os números da tela.
+
+O resumo administrativo agrega andamento e valor histórico dos concluídos em
+Pedidos e disponibilidade em Catálogo, com atualização e falhas independentes.
+Um único polling de configuração atende o frontend, preservando rascunhos e
+envios pendentes e rejeitando respostas de revisões anteriores. O polling mantém
+o erro estruturado e aguarda requisições anteriores antes de atualizar novamente.
+
+Passaram 168 testes unitários, três integrações novas com PostgreSQL 17 e as
+21 jornadas Playwright, incluindo quatro de TV e sincronização. Um teste existente
+de resposta atrasada passou a atrasar o catálogo, pois a configuração deixou de
+ter consultas duplicadas por tela. O build passou e a TV foi revisada em 1920×1080.
+Na revisão pontual, quatro integrações e as quatro jornadas afetadas foram
+reexecutadas. A leitura estrita de features passou a ser compartilhada; o texto de
+falha distingue dados visíveis de dados ocultos e a TV recebeu ajustes de acabamento.
+Quinze medições entre sessões independentes ficaram abaixo de 5 segundos, com
+máximos de 1795 ms na criação e 856 ms na transição. Configuração foi medida em
+paralelo na TV (3357 ms), no carrinho (1903 ms) e na navegação (1862 ms).
+Evidências e ambiente em [docs/evidence/stage7-propagation.json](docs/evidence/stage7-propagation.json).
+Próxima etapa: consolidação e entrega acadêmica, T50–T58; o p95 com 20 clientes
+continua sem medição nesta etapa.
+
 ## Etapa 1 — Contratos e estrutura
 
 Dependências: nenhuma.
@@ -299,19 +327,19 @@ no P0.
 
 Dependências: etapas 5 e 6.
 
-- [ ] T43 — Implementar projeção pública da TV apenas com números,
+- [x] T43 — Implementar projeção pública da TV apenas com números,
   modalidade/mesa e estados necessários, sem nomes, endereços ou valores.
-- [ ] T44 — Exibir Em preparo e Prontos; excluir recebidos, concluídos e entregas
+- [x] T44 — Exibir Em preparo e Prontos; excluir recebidos, concluídos e entregas
   já despachadas. Validar a feature TV também na API.
-- [ ] T45 — Conectar indicadores administrativos: pedidos em andamento, valor
+- [x] T45 — Conectar indicadores administrativos: pedidos em andamento, valor
   dos concluídos e produtos disponíveis, sem chamar esse valor de receita paga.
-- [ ] T46 — Implementar polling a cada três segundos nas áreas pertinentes,
+- [x] T46 — Implementar polling a cada três segundos nas áreas pertinentes,
   com limpeza de timers, prevenção de requisições sobrepostas e tratamento de erro.
-- [ ] T47 — Mostrar indisponibilidade e horário da última sincronização, sem
+- [x] T47 — Mostrar indisponibilidade e horário da última sincronização, sem
   apresentar dados antigos como atuais.
-- [ ] T48 — Propagar configuração entre sessões: avisar e reiniciar carrinhos,
+- [x] T48 — Propagar configuração entre sessões: avisar e reiniciar carrinhos,
   bloquear recursos desabilitados e preservar acompanhamento/conclusão de pedidos.
-- [ ] T49 — Medir propagação de criação, transição e configuração entre sessões
+- [x] T49 — Medir propagação de criação, transição e configuração entre sessões
   independentes em até cinco segundos no ambiente de demonstração.
 
 Critério de conclusão: cinco áreas conectadas, TV com dados limitados e mudanças

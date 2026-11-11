@@ -174,7 +174,16 @@ export type TableOrderPage = {
 };
 const tables = "tables/v1/";
 
+export type TVTicket = { number: number; fulfillment: Fulfillment; table_number: number | null };
+export type TVPage = { items: TVTicket[]; total: number; next_cursor: string | null };
+export type TVBoard = { preparing: TVPage; ready: TVPage };
+export type OrderSummary = { active_orders: number; completed_order_value_cents: number };
+export type CatalogSummary = { available_products: number; total_products: number };
+
 export const api = {
+  tv: () => request<TVBoard>(orders + "tv?limit=9"),
+  orderSummary: () => request<OrderSummary>(orders + "summary"),
+  catalogSummary: () => request<CatalogSummary>(catalog + "summary"),
   session: () => request<Session>(sessions + "/current"),
   login: async (username: string, password: string) => {
     await request(sessions, "POST", { username, password });
